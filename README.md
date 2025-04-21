@@ -1,5 +1,5 @@
 # GAMEPADKEYMOUSE.PY
-This is a Python3 script that allows the user to move the mouse cursor around with a gamepad's joystick. As well as the right and left click. Also, the ability to open an on-screen keyboard that is navigatable with the joytick.  
+This is a Python3 script that allows the user to move the mouse cursor around with a gamepad's joystick. As well as the right and left click. Also, the ability to open an on-screen keyboard that is navigatable with the joystick.  
 
 Currently the on-screen keyboard is nearly entirely non-functional, can only move the highlight around for now. Mouse cursor works but it's slightly janky still.  
 
