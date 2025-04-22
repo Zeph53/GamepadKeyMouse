@@ -4,55 +4,55 @@
 ## ONLY tested and configured for an old "Playstation (DS3) controller" connected through bluetooth.
 ## There is also a custom on-screen keyboard to use by holding down L2.
 ## L2 might not be L2 for anyone else but me.
-## I hardly know how to use Python so ChatGPT did 99 percent of this wizardry.
+## GamepadKeyMouse to turn your gamepad into an effective mouse and keyboard.
 #
 #
 #
 #
-#    GamepadKeyMouse to turn your gamepad into an effective mouse and keyboard.
-#    Copyright (C) 2025 GitHub.com/Zeph53
+# Copyright (C) 2025 GitHub.com/Zeph53
 #
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-#
-#
-#
-#
-## Disclaimer GNU General Public License v3.0 (gpl-3.0)
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 print("""
 This program comes with ABSOLUTELY NO WARRANTY!
 This is free software, and you are welcome to redistribute it under certain conditions.
 See https://www.gnu.org/licenses/gpl-3.0.html for more details.
 """)
 
+
 import sdl2
 import tkinter as tk
-import subprocess
+import sys
+from time import time
 from tkinter import Toplevel
 from Xlib.display import Display
 from Xlib import X
+from Xlib import XK
 from Xlib.ext import xtest
-import sys
 
+# Configuration constants
 DEADZONE = 8192
 EXEMPT_AXES = {4, 5}
 AXIS_STATE = {i: 0 for i in range(6)}
 
+# Display for X input
 disp = Display()
 root = disp.screen().root
 g = root.get_geometry()
 sw, sh = g.width, g.height
 
+# Mouse settings
 MAX_SPEED = 20
 FRAME_DELAY = 16
 
@@ -60,12 +60,16 @@ dx_accum = 0.0
 dy_accum = 0.0
 scroll_accum = 0.0
 
+# On-screen keyboard globals
 osk_window = None
+menu_buttons = []
 menu_cursor_x = 0
 menu_cursor_y = 0
-menu_buttons = []
 MENU_SPEED = 1.5
+NAVIGATION_DELAY = 0.080
+last_move_time = 0
 
+# Utility functions
 def apply_deadzone(axis, v):
     if axis in EXEMPT_AXES:
         return v
@@ -81,8 +85,8 @@ def send_click(btn, down):
 
 def move_cursor(dx, dy):
     pos = root.query_pointer()
-    nx = min(max(0, pos.root_x + dx), sw - 1)
-    ny = min(max(0, pos.root_y + dy), sh - 1)
+    nx = min(max(0, int(pos.root_x + dx)), sw - 1)
+    ny = min(max(0, int(pos.root_y + dy)), sh - 1)
     root.warp_pointer(nx, ny)
     disp.sync()
 
@@ -99,201 +103,251 @@ def print_axis_state():
     line = " | ".join(f"A{a}:{AXIS_STATE[a]:>6}" for a in sorted(AXIS_STATE))
     sys.stdout.write("\r" + line)
     sys.stdout.flush()
+    print("\n")
 
 def open_osk():
-    global osk_window, menu_buttons, menu_cursor_x, menu_cursor_y
+    global osk_window, menu_buttons, menu_cursor_x, menu_cursor_y, last_move_time
 
     if osk_window is not None:
         return
 
     osk_window = Toplevel()
     osk_window.title("OSK Menu")
+    osk_window.attributes("-topmost", True)
+    osk_window.overrideredirect(True)
+    osk_window.lift()
+    osk_window.wm_attributes("-alpha", 0.95)
+    osk_window.configure(highlightthickness=0, bd=0)
 
-    # Get screen width and height from the root window
-    screen_width = osk_window.winfo_screenwidth()
-    screen_height = osk_window.winfo_screenheight()
-
-    # Define the desired width and height of the OSK window
-    window_width = 1400
-    window_height = 350
-
-    # Calculate the position (bottom center of the screen)
-    x_position = (screen_width // 2) - (window_width // 2)
-    y_position = screen_height - window_height
-
-    # Set the geometry of the window with the calculated position
-    osk_window.geometry(f"{window_width}x{window_height}+{x_position}+{y_position}")
+    screen_w = osk_window.winfo_screenwidth()
+    screen_h = osk_window.winfo_screenheight()
+    win_w, win_h = 1400, 350
+    x_pos = (screen_w // 2) - (win_w // 2)
+    y_pos = screen_h - win_h
+    osk_window.geometry(f"{win_w}x{win_h}+{x_pos}+{y_pos}")
     osk_window.configure(bg="black")
 
-    qwerty_keys = [
-        ["Esc", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "Empty", "Empty", "Print\nScreen", "Scroll\nLock", "Pause\nBreak"],
-        ["Empty", "Empty", "Empty", "Empty", "Empty", "Empty", "Empty", "Empty", "Empty", "Empty", "Empty", "Empty", "Empty", "Empty", "Empty", "Empty", "Empty", "Empty"],
-        ["~\n`", "!\n1", "@\n2", "#\n3", "$\n4", "%\n5", "^\n6", "&\n7", "*\n8", "(\n9", ")\n0", "_\n-", "+\n=", "Back\nSpace", "Empty", "Insert", "Home", "Page\nUp"],
-        ["Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "{\n[", "}\n]", "|\n\\", "Empty", "Delete", "End", "Page\nDown"],
-        ["Caps", "A", "S", "D", "F", "G", "H", "J", "K", "L", ":\n;", "\"\n'", "Enter", "Empty", "Empty", "Empty", "Empty", "Empty"],
-        ["Shift", "Z", "X", "C", "V", "B", "N", "M", "<\n,", ">\n.", "?\n/", "Shift", "Empty", "Empty", "Empty", "Empty", "Up", "Empty"],
-        ["Ctrl", "Win", "Fn", "Alt", "Space", "Space", "Space", "Space", "Alt", "Fn", "Menu", "Ctrl", "Empty", "Empty", "Empty", "Left", "Down", "Right"]
+    qwerty = [
+        ["Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12","Empty","Empty","Print\nScreen","Scroll\nLock","Pause\nBreak"],
+        ["Empty"]*18,
+        ["~\n`","!\n1","@\n2","#\n3","$\n4","%\n5","^\n6","&\n7","*\n8","(\n9",")\n0","_\n-","+\n=","Back\nSpace","Empty","Insert","Home","Page\nUp"],
+        ["Tab","Q","W","E","R","T","Y","U","I","O","P","{\n[","}\n]","|\n\\","Empty","Delete","End","Page\nDown"],
+        ["Caps","A","S","D","F","G","H","J","K","L",":\n;","\"\n'","Enter","Empty","Empty","Empty","Empty","Empty"],
+        ["Shift","Z","X","C","V","B","N","M","<\n,",">\n.","?\n/","Shift","Empty","Empty","Empty","Empty","Up","Empty"],
+        ["Ctrl","Win","Fn","Alt","Space","Space","Space","Space","Alt","Fn","Menu","Ctrl","Empty","Empty","Empty","Left","Down","Right"]
     ]
 
     menu_buttons = []
-    for i, row in enumerate(qwerty_keys):
-        button_row = []
-        col = 0
-        while col < len(row):
-            key = row[col]
+    for r, row in enumerate(qwerty):
+        btn_row = []
+        c = 0
+        while c < len(row):
+            key = row[c]
             if key == "Empty":
-                # Set fixed size for empty space to match buttons, ensure it's black
                 spacer = tk.Label(osk_window, text="", width=6, height=2, bg="black", relief="flat")
-                spacer.grid(row=i, column=col, padx=0, pady=0, sticky="nsew")
-                spacer.grid_remove()  # Remove it from the focus cycle (not navigable)
-                button_row.append(None)  # Use None to mark empty space, no button
-                col += 1
-            elif key == "Space" and col + 3 < len(row) and all(k == "Space" for k in row[col:col+4]):
-                # Space bar spanning 4 columns
-                btn = tk.Button(osk_window, text="Space", width=6 * 4, height=2, bg="gray", fg="white", relief="raised", font=("Arial", 12))
-                btn.grid(row=i, column=col, columnspan=4, padx=3, pady=3, sticky="nsew")
-                button_row.extend([btn, None, None, None])  # Extend button row with 4 columns for space
-                col += 4
+                spacer.grid(row=r, column=c, sticky="nsew")
+                spacer.grid_remove()
+                btn_row.append(None)
+                c += 1
+            elif key == "Space":
+                btn = tk.Button(osk_window, text="Space", width=24, height=2,
+                               bg="gray", fg="white", relief="raised", font=("Arial",12))
+                btn.grid(row=r, column=c, columnspan=4, sticky="nsew")
+                btn_row.extend([btn]*4)
+                c += 4
             elif key == "Enter":
-                btn = tk.Button(osk_window, text="Enter", width=6 * 2, height=2, bg="gray", fg="white", relief="raised", font=("Arial", 12))
-                btn.grid(row=i, column=col, columnspan=2, padx=3, pady=3, sticky="nsew")
-                button_row.extend([btn, None])
-                col += 2
+                btn = tk.Button(osk_window, text="Enter", width=12, height=2,
+                               bg="gray", fg="white", relief="raised", font=("Arial",12))
+                btn.grid(row=r, column=c, columnspan=2, sticky="nsew")
+                btn_row.extend([btn]*2)
+                c += 2
+            elif key == "Shift":
+                btn = tk.Button(osk_window, text="Shift", width=12, height=2,
+                               bg="gray", fg="white", relief="raised", font=("Arial",12))
+                btn.grid(row=r, column=c, columnspan=2, sticky="nsew")
+                btn_row.extend([btn]*2)
+                c += 2
             else:
-                btn = tk.Button(osk_window, text=key, width=6, height=2, bg="gray", fg="white", relief="raised", font=("Arial", 12))
-                btn.grid(row=i, column=col, padx=3, pady=3, sticky="nsew")
-                button_row.append(btn)
-                col += 1
-        menu_buttons.append(button_row)
+                btn = tk.Button(osk_window, text=key, width=6, height=2,
+                               bg="gray", fg="white", relief="raised", font=("Arial",12))
+                btn.grid(row=r, column=c, sticky="nsew")
+                btn_row.append(btn)
+                c += 1
+        menu_buttons.append(btn_row)
 
-    # Ensure the grid is reconfigured after the buttons are added
-    for i in range(len(qwerty_keys)):
-        osk_window.grid_rowconfigure(i, weight=1, uniform="equal")
-    for i in range(max(len(r) for r in menu_buttons)):
-        osk_window.grid_columnconfigure(i, weight=1, uniform="equal")
+    for i in range(len(qwerty)):
+        osk_window.grid_rowconfigure(i, weight=1, uniform="r")
+    for j in range(max(len(r) for r in menu_buttons)):
+        osk_window.grid_columnconfigure(j, weight=1, uniform="c")
 
-    # Ensure we are not calling max() on an empty list
-    if menu_buttons:
-        highlight_button(0, 0)  # Highlight the first button if the menu is populated
-    else:
-        print("Error: Menu buttons are not populated correctly.")
+    # The key change here: Do not interfere with typing in the chatbox.
+    osk_window.attributes("-topmost", True)  # Always on top but not stealing focus.
+    root.set_input_focus(X.RevertToParent, X.CurrentTime)
+    disp.sync()
 
-
-
+    # Set the cursor to the previous position
+    highlight_button(menu_cursor_x, menu_cursor_y)
 
 
+
+# Close OSK function
 def close_osk():
     global osk_window
     if osk_window:
+        # Save the current cursor position before closing
+        global menu_cursor_x, menu_cursor_y
+        menu_cursor_x, menu_cursor_y = get_cursor_position()
+        
+        # Ensure the focus is reset back to the original window
+        root.set_input_focus(X.RevertToParent, X.CurrentTime)
+        disp.sync()
+        
         osk_window.destroy()
         osk_window = None
 
+
+def get_cursor_position():
+    return menu_cursor_x, menu_cursor_y
+
 def highlight_button(x, y):
-    # Ensure that the highlight is properly handled even when rows and columns are not fixed
-    for i in range(len(menu_buttons)):
-        for j in range(len(menu_buttons[i])):
-            btn = menu_buttons[i][j]
-            if btn:  # Only highlight valid buttons
+    for r, row in enumerate(menu_buttons):
+        for c, btn in enumerate(row):
+            if btn:
                 btn.configure(bg="gray")
-    
-    # Check if the button exists before highlighting it
-    if 0 <= y < len(menu_buttons) and 0 <= x < len(menu_buttons[y]) and menu_buttons[y][x]:
-        menu_buttons[y][x].configure(bg="blue")
+    if 0 <= y < len(menu_buttons) and 0 <= x < len(menu_buttons[y]):
+        btn = menu_buttons[y][x]
+        if btn:
+            btn.configure(bg="blue")
 
-from time import time, sleep  # Importing sleep and time from time module
 
-# Global variable to track the last movement time
-last_move_time = 0
-last_move_origin = 0
-NAVIGATION_DELAY = 0.075  # Delay in seconds (e.g., 200ms)
+# Navigation logic
 
 def navigate_menu(x_axis, y_axis):
-    global menu_cursor_x, menu_cursor_y, last_move_time, last_move_origin
-
-    current_time = time()
-    if current_time - last_move_time < NAVIGATION_DELAY:
+    global menu_cursor_x, menu_cursor_y, last_move_time
+    now = time.time()
+    if now - last_move_time < NAVIGATION_DELAY:
         return
 
-    dx = int(x_axis * MENU_SPEED) if abs(x_axis) > 0.3 else 0
-    dy = int(y_axis * MENU_SPEED) if abs(y_axis) > 0.3 else 0
+    dx = 0
+    if x_axis > 0.3:
+        dx = 1
+    elif x_axis < -0.3:
+        dx = -1
 
-    new_x = menu_cursor_x
-    new_y = menu_cursor_y
+    dy = 0
+    if y_axis > 0.3:
+        dy = 1
+    elif y_axis < -0.3:
+        dy = -1
 
-    # Track origin of movement to handle return behavior (only necessary for special keys)
-    origin_x = menu_cursor_x
-    origin_y = menu_cursor_y
+    x0, y0 = menu_cursor_x, menu_cursor_y
+    new_x, new_y = x0, y0
 
-    # If we're entering a multi-cell key like Space or Enter, track the exact origin cell
-    if menu_buttons[origin_y][origin_x] and menu_buttons[origin_y][origin_x].cget("text") in ("Space", "Enter"):
-        last_move_origin = (origin_x, origin_y)
+    def is_valid(nx, ny):
+        if ny < 0 or ny >= len(menu_buttons):
+            return False
+        row = menu_buttons[ny]
+        if nx < 0 or nx >= len(row):
+            return False
+        return row[nx] is not None and row[nx].cget("text") != "Empty"
 
-    # Handle horizontal movement (left/right)
-    if dx != 0:
-        tx = new_x
-        while True:
-            tx += dx
-            if tx < 0 or tx >= len(menu_buttons[new_y]):
+    # Handle diagonal movement
+    if dx != 0 and dy != 0:
+        for k in range(1, 10):
+            nx = x0 + k * dx
+            ny = y0 + k * dy
+            if is_valid(nx, ny):
+                new_x, new_y = nx, ny
                 break
-            btn = menu_buttons[new_y][tx]
-            if btn and btn.cget("text") != "Empty":  # Ensure button is not "Empty"
-                new_x = tx
-                break
-
-    # Handle vertical movement (up/down)
-    if dy != 0:
-        ty = new_y
-        while True:
-            ty += dy
-            if ty < 0 or ty >= len(menu_buttons):
-                break
-            row = menu_buttons[ty]
-            if new_x < len(row):
-                btn = row[new_x]
-                if btn and btn.cget("text") != "Empty":  # Button must be valid
-                    new_y = ty
+        else:
+            # if diagonal fails, check horizontal and vertical independently
+            for k in range(1, 10):
+                nx = x0 + k * dx
+                if is_valid(nx, y0):
+                    new_x = nx
                     break
-                elif btn is None:
-                    # Check for multi-column buttons like Space or Enter
-                    for offset in range(-3, 1):  # range(-3, 1) to check left and right columns
-                        cx = new_x + offset
-                        if 0 <= cx < len(row):
-                            check_btn = row[cx]
-                            if check_btn and check_btn.cget("text") in ("Enter", "Space"):
-                                new_y = ty
-                                new_x = cx
-                                break
-                    else:
-                        continue
+            for k in range(1, 10):
+                ny = y0 + k * dy
+                if is_valid(x0, ny):
+                    new_y = ny
+                    break
+    else:
+        # Handle horizontal movement
+        if dx != 0:
+            for k in range(1, 10):
+                nx = x0 + k * dx
+                if is_valid(nx, y0):
+                    new_x = nx
+                    break
+        # Handle vertical movement
+        if dy != 0:
+            for k in range(1, 10):
+                ny = y0 + k * dy
+                if is_valid(x0, ny):
+                    new_y = ny
                     break
 
-        # Special case: when moving up to multi-column buttons like Enter/Space, return to the original position
-        if dy < 0 and menu_buttons[new_y][new_x] is not None and menu_buttons[new_y][new_x].cget("text") in ("Enter", "Space"):
-            # Ensure we return to the origin cell inside the multi-column button
-            if last_move_origin and (origin_y != new_y or origin_x != new_x):
-                new_y, new_x = last_move_origin
-
-    # Ensure the new position is within bounds
-    if 0 <= new_y < len(menu_buttons) and 0 <= new_x < len(menu_buttons[new_y]):
-        menu_cursor_x = new_x
-        menu_cursor_y = new_y
+    if (new_x, new_y) != (x0, y0):
+        menu_cursor_x, menu_cursor_y = new_x, new_y
         highlight_button(menu_cursor_x, menu_cursor_y)
-        last_move_time = current_time
+        last_move_time = now
 
+from pynput.keyboard import Controller as KeyboardController, Key
+import time
 
-
-
-
+# Initialize keyboard controller
+keyboard = KeyboardController()
 
 def press_menu_button():
-    btn = menu_buttons[menu_cursor_y][menu_cursor_x]
-    if btn:  # Only press valid buttons
-        char = btn["text"]
-        subprocess.Popen(["xdotool", "type", char])
+    try:
+        x, y = menu_cursor_x, menu_cursor_y
+        if y < 0 or y >= len(menu_buttons) or x < 0 or x >= len(menu_buttons[y]):
+            return
+        btn = menu_buttons[y][x]
+        if not btn:
+            return
+        label = btn['text']
+        keys = label.split('\n')[-1]  # Get the last part of the label (in case of multi-line buttons)
+
+        print(f"Button label: '{label}'")  # Debugging the label we are trying to press
+
+        # If the label is "Enter", send an actual Enter key press
+        if keys == "Enter":
+            print("Sending Enter key...")
+            keyboard.press(Key.enter)
+            keyboard.release(Key.enter)
+        else:
+            # For other keys, send the corresponding key press
+            for char in keys:
+                print(f"Sending key press for {char}")  # Debugging which character we are pressing
+
+                # If the character is a regular printable key
+                if char.isalpha():  # Handle alphabetic characters
+                    keyboard.press(char.lower())  # Lowercase version
+                    keyboard.release(char.lower())  # Release the lowercase version
+                elif char.isdigit():  # Handle numeric characters
+                    keyboard.press(char)
+                    keyboard.release(char)
+                elif char == ' ':  # Space bar handling
+                    keyboard.press(Key.space)
+                    keyboard.release(Key.space)
+                else:
+                    # Handle other special characters
+                    keyboard.press(char)
+                    keyboard.release(char)
+
+        time.sleep(0.05)  # Slight delay to allow key press to be processed
+
+    except Exception as e:
+        print(f"Error sending OSK key: {e}", file=sys.stderr)
+
+
+
+
+# Main loop
 
 def main():
     global dx_accum, dy_accum, scroll_accum
-
     sdl2.SDL_Init(sdl2.SDL_INIT_GAMECONTROLLER)
     controller = None
     for i in range(sdl2.SDL_NumJoysticks()):
@@ -318,49 +372,61 @@ def main():
             updated = False
             while sdl2.SDL_PollEvent(evt):
                 if evt.type == sdl2.SDL_CONTROLLERAXISMOTION:
-                    a = evt.caxis.axis
-                    v = apply_deadzone(a, evt.caxis.value)
+                    a, v = evt.caxis.axis, apply_deadzone(evt.caxis.axis, evt.caxis.value)
                     if AXIS_STATE[a] != v:
                         AXIS_STATE[a] = v
                         updated = True
+
                 elif evt.type == sdl2.SDL_CONTROLLERBUTTONDOWN:
                     b = evt.cbutton.button
-                    print(f"\n[BUTTON DOWN] {b}")
-                    if b == 0: send_click(1, True)
-                    elif b == 1: send_click(3, True)
-                    elif b == 2 and osk_window: press_menu_button()
+                    print(f"Button {b} pressed")  # Echo button press to terminal
+                    try:
+                        if osk_window:
+                            if b == 9:  # L2 button (or whatever you choose for "Enter" on the OSK)
+                                press_menu_button()  # Trigger key press on OSK
+                        else:
+                            # Other button actions can be mapped here
+                            if b == 0:
+                                send_click(1, True)
+                            elif b == 1:
+                                send_click(3, True)
+                    except Exception as e:
+                        print(f"Error handling controller button {b}: {e}", file=sys.stderr)
+
+
                 elif evt.type == sdl2.SDL_CONTROLLERBUTTONUP:
                     b = evt.cbutton.button
-                    print(f"\n[BUTTON UP] {b}")
-                    if b == 0: send_click(1, False)
-                    elif b == 1: send_click(3, False)
+                    print(f"Button {b} released")  # Echo button release to terminal
+                    try:
+                        if not osk_window:
+                            if b == 0:
+                                send_click(1, False)
+                            elif b == 1:
+                                send_click(3, False)
+                    except Exception as e:
+                        print(f"Error handling controller button release {b}: {e}", file=sys.stderr)
 
             if AXIS_STATE[4] > 0:
                 if osk_window is None:
                     open_osk()
-                navigate_menu(AXIS_STATE[0] / 32767.0, AXIS_STATE[1] / 32767.0)
+                navigate_menu(AXIS_STATE[0]/32767, AXIS_STATE[1]/32767)
             else:
                 if osk_window:
                     close_osk()
-                x = AXIS_STATE[0] / 32767.0
-                y = AXIS_STATE[1] / 32767.0
+                x = AXIS_STATE[0]/32767
+                y = AXIS_STATE[1]/32767
                 dx_accum += x * MAX_SPEED
                 dy_accum += y * MAX_SPEED
-
-                scroll_accum += AXIS_STATE[3] / -32768.0
-
-                mx = int(dx_accum)
-                my = int(dy_accum)
+                scroll_accum += AXIS_STATE[3]/-32768
+                mx, my = int(dx_accum), int(dy_accum)
                 dx_accum -= mx
                 dy_accum -= my
-
                 if scroll_accum >= 0.5:
                     send_scroll(0, 1)
                     scroll_accum -= 1
                 elif scroll_accum <= -0.5:
                     send_scroll(0, -1)
                     scroll_accum += 1
-
                 if mx or my:
                     move_cursor(mx, my)
                     updated = True
@@ -370,14 +436,13 @@ def main():
 
             sdl2.SDL_Delay(FRAME_DELAY)
             root_tk.update()
-
     except KeyboardInterrupt:
         pass
     finally:
         if controller:
             sdl2.SDL_GameControllerClose(controller)
         sdl2.SDL_Quit()
-        print("""\n""")
 
 if __name__ == "__main__":
     main()
+
