@@ -23,19 +23,21 @@ Circle (?) to right click.
 
 Hold L2 (?) to bring up the on-screen keyboard.  
 Left analogue stick (?) to navigate the on-screen keyboard.  
-Eventually, L1 (?) will be used to select or hold a key.  
+Eventually, L1 (?) to select or hold a key.  
+
+Currently only the Enter key is selectable and functional.  
 
 ## Updates
+    Improved navigatable multicell keys like spacebar or enter.
+    Better movement from multicell keys.
+    Actually select keys using gamepad button 9 (L1).
     Fixed some silly newlines in the first README.md.
     GPL3 licence compliance.
     README.md creation.
 
 ## Updates Queue  
     Use right stick and R1 for secondary highlight selection with the OSK open.
-    Actually select keys using gamepad select.
     Keyboard media keys.
-    Better multicell keys.
-    Improved movement off of multicell keys like spacebar or enter.
     Create a better and more informative README.md.
     Informative GPL3 comliance within script.
     On the fly SDL2 hardware remapping, for other gamepads besides a DS3.
