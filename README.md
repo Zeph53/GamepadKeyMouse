@@ -36,6 +36,7 @@ Currently only the Enter key is selectable and functional.
     README.md creation.
 
 ## Updates Queue  
+    Package script as an AppImage, to include all of those dependencies. Tested - functional.
     Use right stick and R1 for secondary highlight selection with the OSK open.
     Keyboard media keys.
     Create a better and more informative README.md.
