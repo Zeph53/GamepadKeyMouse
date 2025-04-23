@@ -1,11 +1,27 @@
 #!/usr/bin/env python3
 #
-## This Python 3 script allows the user to control mouse input with the gamepad joystick axis.
+## This Python 3 script allows the user to control mouse/keyboard input with a "Playstation (DS3) Controller".
 ## ONLY tested and configured for an old "Playstation (DS3) controller" connected through bluetooth.
-## There is also a custom on-screen keyboard to use by holding down L2.
-## L2 might not be L2 for anyone else but me.
-## GamepadKeyMouse to turn your gamepad into an effective mouse and keyboard.
+## There is also a custom on-screen keyboard used with the DS3 analogue sticks.
+## Button and axis assignments may not be functional for anyone besides me.
+##
+## The mouse input is currently controlled with the "left analogue stick (axis 0, 1)".
+## Left click is "cross (button 0)". Right click is "circle (button 1)".
+## 
+## The on-screen keyboard can be opened by holding either "L2 (axis 4)" or "R2 (axis 5)".
+## While holding "L2 (axis 4)" you can use the "left analogue stick (axis 0, 1)" to navigate the blue cursor.
+## While holding "R2 (axis 5)" you can use the "right analogue stick (axis 2, 3)" to navigate the red cursor.
+## You can also hold both "L2 (axis 4)" or "R2 (axis 5)" at the same time and seamlessly navigate with both.
+## To select/hold with the blue cursor is "L1 (button 9)".
+## To select/hold with the red cursor is "R1 (button 10)".
+##
+## The user can also use a real hardware mouse to click and hold items with the on-screen keyboard.
+## I believe all symbols and other keys work. At least 90 percent functional now.
 #
+#
+#
+#
+# GamepadKeyMouse to turn your gamepad into an effective mouse and keyboard.
 # Copyright (C) 2025 GitHub.com/Zeph53
 #
 # This program is free software: you can redistribute it and/or modify
@@ -21,130 +37,166 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
 print("""
 This program comes with ABSOLUTELY NO WARRANTY!
 This is free software, and you are welcome to redistribute it under certain conditions.
 See https://www.gnu.org/licenses/gpl-3.0.html for more details.
 """)
 
-
-import sys, time, sdl2, tkinter as tk 
-from tkinter import Toplevel
-from Xlib import X, XK
+from sys import stdout, stderr
+from time import time
+from sdl2 import (
+    SDL_Init, SDL_Quit, SDL_Delay, SDL_Event, SDL_NumJoysticks,
+    SDL_IsGameController, SDL_GameControllerOpen, SDL_GameControllerClose,
+    SDL_GameControllerEventState, SDL_PollEvent,
+    SDL_ENABLE, SDL_INIT_GAMECONTROLLER,
+    SDL_CONTROLLERAXISMOTION, SDL_CONTROLLERBUTTONDOWN, SDL_CONTROLLERBUTTONUP
+)
+from tkinter import Toplevel, Label, Button, Tk
+from Xlib import X
 from Xlib.ext import xtest
 from Xlib.display import Display
 from pynput.keyboard import Controller as KeyboardController, Key
 
-
-# Configuration constants
 DEADZONE = 8192
 EXEMPT_AXES = {4, 5}
 AXIS_STATE = {i: 0 for i in range(6)}
 
-
-# Display for X input
 disp = Display()
 root = disp.screen().root
 g = root.get_geometry()
 sw, sh = g.width, g.height
 
-
-# Mouse settings
 MAX_SPEED = 20
 FRAME_DELAY = 16
-dx_accum = 0.0
-dy_accum = 0.0
-scroll_accum = 0.0
+dx_accum = dy_accum = ver_scroll_accum = hor_scroll_accum = 0.0
 
-
-# On-screen keyboard globals
 osk_window = None
 menu_buttons = []
-menu_cursor_x = 0
-menu_cursor_y = 0
-MENU_SPEED = 1.5
-NAVIGATION_DELAY = 0.1
-last_move_time = 0
-prev_focus = None
-prev_revert = None
+
+blue_x = blue_y = red_x = red_y = 0
+last_move_blue = last_move_red = 0
+NAV_DELAY = 0.1
+
+pressed_blue = None
+pressed_red = None
+pressed_mouse = {}
+
+prev_focus = prev_revert = None
 keyboard = KeyboardController()
 
-
-# Utility functions
 def apply_deadzone(axis, v):
     if axis in EXEMPT_AXES:
         return v
     if abs(v) <= DEADZONE:
         return 0
-    scaled = (abs(v) - DEADZONE) / (32767 - DEADZONE)
-    scaled *= 32767
+    scaled = (abs(v) - DEADZONE) / (32767 - DEADZONE) * 32767
     return int(scaled if v > 0 else -scaled)
-
 
 def send_click(btn, down):
     xtest.fake_input(disp, X.ButtonPress if down else X.ButtonRelease, btn)
     disp.sync()
 
-
 def move_cursor(dx, dy):
     pos = root.query_pointer()
-    nx = min(max(0, int(pos.root_x + dx)), sw - 1)
-    ny = min(max(0, int(pos.root_y + dy)), sh - 1)
-    root.warp_pointer(nx, ny)
+    nx = min(max(0, pos.root_x + dx), sw - 1)
+    ny = min(max(0, pos.root_y + dy), sh - 1)
+    root.warp_pointer(int(nx), int(ny))
     disp.sync()
-
 
 def send_scroll(dx, dy):
-    if dy != 0:
-        xtest.fake_input(disp, X.ButtonPress, 4 if dy > 0 else 5)
-        xtest.fake_input(disp, X.ButtonRelease, 4 if dy > 0 else 5)
-    if dx != 0:
-        xtest.fake_input(disp, X.ButtonPress, 6 if dx > 0 else 7)
-        xtest.fake_input(disp, X.ButtonRelease, 6 if dx > 0 else 7)
+    if dy:
+        xtest.fake_input(disp, X.ButtonPress, 4 if dy>0 else 5)
+        xtest.fake_input(disp, X.ButtonRelease, 4 if dy>0 else 5)
+    if dx:
+        xtest.fake_input(disp, X.ButtonPress, 6 if dx>0 else 7)
+        xtest.fake_input(disp, X.ButtonRelease, 6 if dx>0 else 7)
     disp.sync()
-
 
 def print_axis_state():
     line = " | ".join(f"A{a}:{AXIS_STATE[a]:>6}" for a in sorted(AXIS_STATE))
-    sys.stdout.write("\r" + line)
-    sys.stdout.flush()
-    print("\n")
+    stdout.write("\r" + line)
+    stdout.flush()
 
+def press_button(cur_x, cur_y):
+    raw = menu_buttons[cur_y][cur_x]['text']
+    lines = raw.split("\n")
+    
+    if len(lines) == 2 and len(lines[1].strip()) == 1:
+        label = lines[1].lower()
+    else:
+        label = raw.lower().replace("\n", "").replace(" ", "")
+    
+    key_map = {
+        "enter": Key.enter, "space": Key.space, "tab": Key.tab, "backspace": Key.backspace,
+        "esc": Key.esc, "menu": Key.menu, "up": Key.up, "down": Key.down,
+        "left": Key.left, "right": Key.right,
+        "printscreen": Key.print_screen, "pausebreak": Key.pause,
+        "insert": Key.insert, "home": Key.home, "delete": Key.delete,
+        "end": Key.end, "pageup": Key.page_up, "pagedown": Key.page_down,
+        "l-shift": Key.shift, "r-shift": Key.shift_r,
+        "l-ctrl": Key.ctrl, "r-ctrl": Key.ctrl_r,
+        "l-alt": Key.alt, "r-alt": Key.alt_r,
+        "l-super": Key.cmd, "r-super": Key.cmd_r,
+        "capslock": Key.caps_lock, "scrolllock": Key.scroll_lock
+    }
+
+    # Check for function key mapping, e.g., f1, f2, f3
+    if label.startswith("f") and len(label) > 1 and label[1:].isdigit():
+        print(f"Attempting to press function key: {label}")  # Debugging print
+        actual = getattr(Key, label, None)
+        if actual is None:
+            print(f"Could not find key for: {label}")  # Debugging print if key is not found
+    else:
+        actual = key_map.get(label)
+
+    if actual:
+        keyboard.press(actual)
+        menu_buttons[cur_y][cur_x].configure(relief="sunken")
+        return (actual, cur_x, cur_y)
+    
+    return (None, None, None)
+
+
+def release_button(button_data):
+    actual, cur_x, cur_y = button_data
+    if actual:
+        keyboard.release(actual)
+    if 0 <= cur_y < len(menu_buttons) and 0 <= cur_x < len(menu_buttons[cur_y]):
+        menu_buttons[cur_y][cur_x].configure(relief="raised")
+
+def on_mouse_press(event, x, y):
+    pressed_mouse[(x,y)] = press_button(x, y)
+
+def on_mouse_release(event, x, y):
+    data = pressed_mouse.pop((x,y), None)
+    if data:
+        release_button(data)
 
 def open_osk():
-    global osk_window, menu_buttons, menu_cursor_x, menu_cursor_y, last_move_time, prev_focus, prev_revert
+    global osk_window, menu_buttons, prev_focus, prev_revert
+    if osk_window: return
     reply = disp.get_input_focus()
-    prev_focus = reply.focus
-    prev_revert = reply.revert_to
-    if osk_window is not None:
-        return
-
+    prev_focus, prev_revert = reply.focus, reply.revert_to
     osk_window = Toplevel()
-    osk_window.title("OSK Menu")
     osk_window.overrideredirect(True)
     osk_window.wm_attributes("-alpha", 0.95)
-    osk_window.attributes("-topmost", True)
     osk_window.lift()
     osk_window.configure(bg="black", highlightthickness=0, bd=0)
-
-    screen_w = osk_window.winfo_screenwidth()
-    screen_h = osk_window.winfo_screenheight()
     win_w, win_h = 1400, 350
-    x_pos = (screen_w // 2) - (win_w // 2)
-    y_pos = screen_h - win_h
+    x_pos = (osk_window.winfo_screenwidth() // 2) - (win_w // 2)
+    y_pos = osk_window.winfo_screenheight() - win_h
     osk_window.geometry(f"{win_w}x{win_h}+{x_pos}+{y_pos}")
 
     qwerty = [
         ["Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12","Empty","Empty","Print\nScreen","Scroll\nLock","Pause\nBreak"],
         ["Empty"]*18,
-        ["~\n`","!\n1","@\n2","#\n3","$\n4","%\n5","^\n6","&\n7","*\n8","(\n9",")\n0","_\n-","+\n=","Back\nSpace","Empty","Insert","Home","Page\nUp"],
+        ["~\n`","!\n1","@\n2","#\n3","$\n4","%\n5","^\n6","&\n7","*\n8","(\n9"," )\n0","_\n-","+\n=","Back\nSpace","Empty","Insert","Home","Page\nUp"],
         ["Tab","Q","W","E","R","T","Y","U","I","O","P","{\n[","}\n]","|\n\\","Empty","Delete","End","Page\nDown"],
-        ["Caps\nLock","A","S","D","F","G","H","J","K","L",":\n;","\"\n'","Enter","Enter","Empty","Empty","Empty","Empty"],
+        ["Caps\nLock","A","S","D","F","G","H","J","K","L",":\n;","\"\n\'","Enter","Enter","Empty","Empty","Empty","Empty"],
         ["L-Shift","L-Shift","Z","X","C","V","B","N","M","<\n,",">\n.","?\n/","R-Shift","R-Shift","Empty","Empty","Up","Empty"],
         ["L-Ctrl","L-Super","Fn","L-Alt","Space","Space","Space","Space","Space","Space","R-Alt","R-Super","Menu","R-Ctrl","Empty","Left","Down","Right"]
     ]
-
     menu_buttons = []
     for r, row in enumerate(qwerty):
         btn_row = []
@@ -152,31 +204,34 @@ def open_osk():
         while c < len(row):
             key = row[c]
             if key == "Empty":
-                spacer = tk.Label(osk_window, text="", width=6, height=2, bg="black", relief="flat")
-                spacer.grid(row=r, column=c, sticky="nsew")
+                spacer = Label(osk_window, text="", width=6, height=2, bg="black")
+                spacer.grid(row=r, column=c)
                 spacer.grid_remove()
                 btn_row.append(None)
                 c += 1
             elif key == "Space":
-                btn = tk.Button(osk_window, text="Space", width=24, height=2,
-                               bg="gray", fg="white", relief="raised", font=("Arial",12))
+                btn = Button(osk_window, text="Space", width=24, height=2, bg="gray", fg="white", relief="raised", font=("Arial", 12))
                 btn.grid(row=r, column=c, columnspan=6, sticky="nsew")
-                btn_row.extend([btn]*6)
+                btn_row += [btn]*6
                 c += 6
             elif key in ("Enter","L-Shift","R-Shift"):
                 span = 2
-                btn = tk.Button(osk_window, text=key, width=12, height=2,
-                               bg="gray", fg="white", relief="raised", font=("Arial",12))
+                btn = Button(osk_window, text=key, width=12, height=2, bg="gray", fg="white", relief="raised", font=("Arial", 12))
                 btn.grid(row=r, column=c, columnspan=span, sticky="nsew")
-                btn_row.extend([btn]*span)
+                btn_row += [btn]*span
                 c += span
             else:
-                btn = tk.Button(osk_window, text=key, width=6, height=2,
-                               bg="gray", fg="white", relief="raised", font=("Arial",12))
+                btn = Button(osk_window, text=key, width=6, height=2, bg="gray", fg="white", relief="raised", font=("Arial", 12))
                 btn.grid(row=r, column=c, sticky="nsew")
                 btn_row.append(btn)
                 c += 1
         menu_buttons.append(btn_row)
+
+    for y, row in enumerate(menu_buttons):
+        for x, btn in enumerate(row):
+            if btn:
+                btn.bind("<ButtonPress-1>", lambda e, x=x, y=y: on_mouse_press(e, x, y))
+                btn.bind("<ButtonRelease-1>", lambda e, x=x, y=y: on_mouse_release(e, x, y))
 
     for i in range(len(menu_buttons)):
         osk_window.grid_rowconfigure(i, weight=1, uniform="r")
@@ -185,229 +240,203 @@ def open_osk():
 
     disp.set_input_focus(prev_focus, prev_revert, X.CurrentTime)
     disp.sync()
-    highlight_button(menu_cursor_x, menu_cursor_y)
 
 
-# Close OSK function
 def close_osk():
-    global osk_window, prev_focus, prev_revert, menu_cursor_x, menu_cursor_y
-    if osk_window:
-        menu_cursor_x, menu_cursor_y = get_cursor_position()
-        disp.set_input_focus(prev_focus, prev_revert, X.CurrentTime)
-        disp.sync()
-        osk_window.destroy()
-        osk_window = None
+    global osk_window, prev_focus, prev_revert, pressed_blue, pressed_red, pressed_mouse
+    if not osk_window:
+        return
+    # release any held OSK gamepad buttons
+    if pressed_blue:
+        release_button(pressed_blue)
+        pressed_blue = None
+    if pressed_red:
+        release_button(pressed_red)
+        pressed_red = None
+    # release any held OSK mouse buttons
+    for data in list(pressed_mouse.values()):
+        if data:
+            release_button(data)
+    pressed_mouse.clear()
+
+    disp.set_input_focus(prev_focus, prev_revert, X.CurrentTime)
+    disp.sync()
+    osk_window.destroy()
+    osk_window = None
 
 
-def get_cursor_position():
-    return menu_cursor_x, menu_cursor_y
-
-
-def highlight_button(x, y):
+def highlight_all():
     for r, row in enumerate(menu_buttons):
         for c, btn in enumerate(row):
             if btn:
-                btn.configure(bg="gray")
-    if 0 <= y < len(menu_buttons) and 0 <= x < len(menu_buttons[y]):
-        btn = menu_buttons[y][x]
-        if btn:
-            btn.configure(bg="blue")
+                btn.configure(bg="gray")  # Default color for all buttons
+
+    if osk_window:
+        blue_open = AXIS_STATE[4] > 0
+        red_open = AXIS_STATE[5] > 0
+        x, y = None, None  # Initialize x, y to None
+        color = None  # Ensure color is reset
+
+        # Handle blue and red cursor states
+        if blue_open or red_open:
+            # If both cursors are active, handle them separately
+            if blue_open:
+                color = "blue"
+                x, y = blue_x, blue_y
+                # Ensure blue cursor highlight is set
+                if 0 <= y < len(menu_buttons) and 0 <= x < len(menu_buttons[y]):
+                    btn = menu_buttons[y][x]
+                    if btn:
+                        btn.configure(bg=color)
+
+            if red_open:
+                color = "red"
+                x, y = red_x, red_y
+                # Ensure red cursor highlight is set
+                if 0 <= y < len(menu_buttons) and 0 <= x < len(menu_buttons[y]):
+                    btn = menu_buttons[y][x]
+                    if btn:
+                        btn.configure(bg=color)
+
+            # Check if both cursors are on the same cell
+            if blue_open and red_open and blue_x == red_x and blue_y == red_y:
+                # Set the cell to purple if both cursors are in the same position
+                btn = menu_buttons[blue_y][blue_x]
+                if btn:
+                    btn.configure(bg="purple")
 
 
-# Navigation logic
-def navigate_menu(x_axis, y_axis):
-    global menu_cursor_x, menu_cursor_y, last_move_time
-    now = time.time()
-    if now - last_move_time < NAVIGATION_DELAY:
-        return
-
-    dx = 0
-    if x_axis > 0.3:
-        dx = 1
-    elif x_axis < -0.3:
-        dx = -1
-
-    dy = 0
-    if y_axis > 0.3:
-        dy = 1
-    elif y_axis < -0.3:
-        dy = -1
-
-    x0, y0 = menu_cursor_x, menu_cursor_y
-    new_x, new_y = x0, y0
-
-    def is_valid(nx, ny):
-        if ny < 0 or ny >= len(menu_buttons):
-            return False
-        row = menu_buttons[ny]
-        if nx < 0 or nx >= len(row):
-            return False
-        return row[nx] is not None and row[nx].cget("text") != "Empty"
-    # Handle diagonal movement
-    if dx != 0 and dy != 0:
-        for k in range(1, 10):
-            nx = x0 + k * dx
-            ny = y0 + k * dy
-            if is_valid(nx, ny):
-                new_x, new_y = nx, ny
+def navigate(x, y, cur_x, cur_y, last_move):
+    now = time()
+    if now - last_move < NAV_DELAY:
+        return cur_x, cur_y, last_move
+    dx = 1 if x>0.3 else -1 if x<-0.3 else 0
+    dy = 1 if y>0.3 else -1 if y<-0.3 else 0
+    nx, ny = cur_x, cur_y
+    def valid(ix, iy):
+        return 0<=iy<len(menu_buttons) and 0<=ix<len(menu_buttons[iy]) and menu_buttons[iy][ix]
+    if dx and dy:
+        for k in range(1,10):
+            if valid(cur_x+dx*k, cur_y+dy*k):
+                nx, ny = cur_x+dx*k, cur_y+dy*k
                 break
-        else:
-            # if diagonal fails, check horizontal and vertical independently
-            for k in range(1, 10):
-                nx = x0 + k * dx
-                if is_valid(nx, y0):
-                    new_x = nx
-                    break
-            for k in range(1, 10):
-                ny = y0 + k * dy
-                if is_valid(x0, ny):
-                    new_y = ny
-                    break
     else:
-        # Handle horizontal movement
-        if dx != 0:
-            for k in range(1, 10):
-                nx = x0 + k * dx
-                if is_valid(nx, y0):
-                    new_x = nx
+        if dx:
+            for k in range(1,10):
+                if valid(cur_x+dx*k, cur_y):
+                    nx = cur_x+dx*k
                     break
-        # Handle vertical movement
-        if dy != 0:
-            for k in range(1, 10):
-                ny = y0 + k * dy
-                if is_valid(x0, ny):
-                    new_y = ny
+        if dy:
+            for k in range(1,10):
+                if valid(cur_x, cur_y+dy*k):
+                    ny = cur_y+dy*k
                     break
-    if (new_x, new_y) != (x0, y0):
-        menu_cursor_x, menu_cursor_y = new_x, new_y
-        highlight_button(menu_cursor_x, menu_cursor_y)
-        last_move_time = now
+    if (nx,ny)!=(cur_x,cur_y):
+        last_move = now
+    return nx, ny, last_move
 
-
-def press_menu_button_down():
-    global prev_focus, prev_revert, pressed_osk_key
-    x, y = menu_cursor_x, menu_cursor_y
-    if not (0 <= y < len(menu_buttons) and 0 <= x < len(menu_buttons[y]) and menu_buttons[y][x]):
-        return
-
-    raw_label = menu_buttons[y][x]['text']
-    lines = raw_label.split("\n")
-    if len(lines) == 2:
-        top = lines[0].strip().lower()
-        bottom = lines[1].strip().lower()
-        label = bottom if len(bottom) == 1 else (top + bottom)
-    else:
-        label = raw_label.strip().lower().replace(" ", "")
-
+def press_button(cur_x, cur_y):
+    raw = menu_buttons[cur_y][cur_x]['text']
+    lines = raw.split("\n")
+    label = (lines[1].lower() if len(lines)==2 and len(lines[1].strip())==1 else raw.lower().replace("\n","").replace(" ",""))
     key_map = {
-        "enter": Key.enter, "space": Key.space, "tab": Key.tab,
-        "backspace": Key.backspace, "esc": Key.esc, "menu": Key.menu,
-
-        "up": Key.up, "down": Key.down, "left": Key.left, "right": Key.right,
-
-        "printscreen": Key.print_screen, "pausebreak": Key.pause,
-        "insert": Key.insert, "home": Key.home, "delete": Key.delete,
-        "end": Key.end, "pageup": Key.page_up, "pagedown": Key.page_down,
-
-        "l-shift": Key.shift, "r-shift": Key.shift_r,
-        "l-ctrl": Key.ctrl, "r-ctrl": Key.ctrl_r,
-        "l-alt": Key.alt, "r-alt": Key.alt_r,
-        "l-super": Key.cmd,"r-super": Key.cmd_r,
-
-        "capslock": Key.caps_lock, "scrolllock": Key.scroll_lock
+        "enter":Key.enter,"space":Key.space,"tab":Key.tab,"backspace":Key.backspace,
+        "esc":Key.esc,"menu":Key.menu,"up":Key.up,"down":Key.down,"left":Key.left,"right":Key.right,
+        "printscreen":Key.print_screen,"pausebreak":Key.pause,"insert":Key.insert,"home":Key.home,
+        "delete":Key.delete,"end":Key.end,"pageup":Key.page_up,"pagedown":Key.page_down,
+        "l-shift":Key.shift,"r-shift":Key.shift_r,"l-ctrl":Key.ctrl,"r-ctrl":Key.ctrl_r,
+        "l-alt":Key.alt,"r-alt":Key.alt_r,"l-super":Key.cmd,"r-super":Key.cmd_r,
+        "capslock":Key.caps_lock,"scrolllock":Key.scroll_lock
     }
 
-    if label.startswith("f") and label[1:].isdigit():
-        actual_key = getattr(Key, label, None)
-    elif label in key_map:
-        actual_key = key_map[label]
-    elif len(label) == 1:
-        actual_key = label
-    else:
-        return
+    actual = getattr(Key, label, None) if label.startswith("f") and label[1:].isdigit() else key_map.get(label, label if len(label) == 1 else None)
+    if actual:
+        keyboard.press(actual)
+        menu_buttons[cur_y][cur_x].configure(relief="sunken")
+        return (actual, cur_x, cur_y)
+    return (None, None, None)
 
-    pressed_osk_key = actual_key
-    keyboard.press(actual_key)
-    disp.set_input_focus(prev_focus, prev_revert, X.CurrentTime)
-    disp.sync()
-
-
-def press_menu_button_up():
-    global pressed_osk_key
-    if pressed_osk_key:
-        keyboard.release(pressed_osk_key)
-        pressed_osk_key = None
-        disp.set_input_focus(prev_focus, prev_revert, X.CurrentTime)
-        disp.sync()
+def release_button(button_data):
+    actual, cur_x, cur_y = button_data
+    if actual:
+        keyboard.release(actual)
+    if actual is not None and 0<=cur_y<len(menu_buttons) and 0<=cur_x<len(menu_buttons[cur_y]):
+        menu_buttons[cur_y][cur_x].configure(relief="raised")
 
 
-# Main loop
 def main():
-    global dx_accum, dy_accum, scroll_accum
-    sdl2.SDL_Init(sdl2.SDL_INIT_GAMECONTROLLER)
+    global dx_accum, dy_accum, ver_scroll_accum, hor_scroll_accum
+    global blue_x, blue_y, red_x, red_y, last_move_blue, last_move_red
+    global pressed_blue, pressed_red
+    SDL_Init(SDL_INIT_GAMECONTROLLER)
     controller = None
-    for i in range(sdl2.SDL_NumJoysticks()):
-        if sdl2.SDL_IsGameController(i):
-            controller = sdl2.SDL_GameControllerOpen(i)
+    for i in range(SDL_NumJoysticks()):
+        if SDL_IsGameController(i):
+            controller = SDL_GameControllerOpen(i)
             break
     if not controller:
         print("No controller found")
         return
-
-    sdl2.SDL_GameControllerEventState(sdl2.SDL_ENABLE)
-    evt = sdl2.SDL_Event()
-
-    root_tk = tk.Tk()
-    root_tk.withdraw()
-
+    SDL_GameControllerEventState(SDL_ENABLE)
+    evt = SDL_Event()
+    root_Tk = Tk()
+    root_Tk.withdraw()
     print("Monitoring PS3 gamepad input (Press Ctrl+C to quit)")
     print_axis_state()
-
     try:
         while True:
             updated = False
-            while sdl2.SDL_PollEvent(evt):
-                if evt.type == sdl2.SDL_CONTROLLERAXISMOTION:
-                    axis = evt.caxis.axis
-                    v = apply_deadzone(axis, evt.caxis.value)
-                    if AXIS_STATE[axis] != v:
-                        AXIS_STATE[axis] = v
+            while SDL_PollEvent(evt):
+                if evt.type == SDL_CONTROLLERAXISMOTION:
+                    a = evt.caxis.axis
+                    v = apply_deadzone(a, evt.caxis.value)
+                    if AXIS_STATE[a] != v:
+                        AXIS_STATE[a] = v
                         updated = True
-
-                elif evt.type == sdl2.SDL_CONTROLLERBUTTONDOWN:
+                elif evt.type == SDL_CONTROLLERBUTTONDOWN:
                     b = evt.cbutton.button
-                    print(f"Button {b} pressed")
-                    try:
-                        if osk_window:
-                            if b == 9:
-                                press_menu_button_down()
-                        else:
-                            if b == 0:
-                                send_click(1, True)
-                            elif b == 1:
-                                send_click(3, True)
-                    except Exception as e:
-                        print(f"Error handling button press {b}: {e}", file=sys.stderr)
-
-                elif evt.type == sdl2.SDL_CONTROLLERBUTTONUP:
+                    print(f"\nButton {b} DOWN")
+                    if osk_window:
+                        if b == 9 and AXIS_STATE[4] > 0:
+                            pressed_blue = press_button(blue_x, blue_y)
+                        elif b == 10 and AXIS_STATE[5] > 0:
+                            pressed_red = press_button(red_x, red_y)
+                    else:
+                        if b == 0:
+                            send_click(1, True)
+                        elif b == 1:
+                            send_click(3, True)
+                elif evt.type == SDL_CONTROLLERBUTTONUP:
                     b = evt.cbutton.button
-                    print(f"Button {b} released")
-                    try:
-                        if osk_window:
-                            if b == 9:
-                                press_menu_button_up()
-                        else:
-                            if b == 0:
-                                send_click(1, False)
-                            elif b == 1:
-                                send_click(3, False)
-                    except Exception as e:
-                        print(f"Error handling button release {b}: {e}", file=sys.stderr)
+                    print(f"\nButton {b} UP")
+                    if osk_window:
+                        if b == 9 and pressed_blue:
+                            release_button(pressed_blue)
+                            pressed_blue = None
+                        elif b == 10 and pressed_red:
+                            release_button(pressed_red)
+                            pressed_red = None
+                    else:
+                        if b == 0:
+                            send_click(1, False)
+                        elif b == 1:
+                            send_click(3, False)
 
-            if AXIS_STATE[4] > 0:
-                if osk_window is None:
-                    open_osk()
-                navigate_menu(AXIS_STATE[0]/32767, AXIS_STATE[1]/32767)
+            blue_open = AXIS_STATE[4] > 0
+            red_open = AXIS_STATE[5] > 0
+            if blue_open or red_open:
+                open_osk()
+                if blue_open:
+                    blue_x, blue_y, last_move_blue = navigate(
+                        AXIS_STATE[0]/32767, AXIS_STATE[1]/32767,
+                        blue_x, blue_y, last_move_blue
+                    )
+                if red_open:
+                    red_x, red_y, last_move_red = navigate(
+                        AXIS_STATE[2]/32767, AXIS_STATE[3]/32768,
+                        red_x, red_y, last_move_red
+                    )
+                highlight_all()
             else:
                 if osk_window:
                     close_osk()
@@ -415,32 +444,37 @@ def main():
                 y = AXIS_STATE[1]/32767
                 dx_accum += x * MAX_SPEED
                 dy_accum += y * MAX_SPEED
-                scroll_accum += AXIS_STATE[3]/-32768
+                ver_scroll_accum += AXIS_STATE[3] / -32768
+                hor_scroll_accum += AXIS_STATE[2] / -32767
                 mx, my = int(dx_accum), int(dy_accum)
                 dx_accum -= mx
                 dy_accum -= my
-                if scroll_accum >= 0.5:
+                if ver_scroll_accum >= 0.5:
                     send_scroll(0, 1)
-                    scroll_accum -= 1
-                elif scroll_accum <= -0.5:
+                    ver_scroll_accum -= 1
+                elif ver_scroll_accum <= -0.5:
                     send_scroll(0, -1)
-                    scroll_accum += 1
+                    ver_scroll_accum += 1
+                if hor_scroll_accum >= 0.5:
+                    send_scroll(1, 0)
+                    hor_scroll_accum -= 1
+                elif hor_scroll_accum <= -0.5:
+                    send_scroll(-1, 0)
+                    hor_scroll_accum += 1
                 if mx or my:
                     move_cursor(mx, my)
                     updated = True
 
             if updated:
                 print_axis_state()
-
-            sdl2.SDL_Delay(FRAME_DELAY)
-            root_tk.update()
+            SDL_Delay(FRAME_DELAY)
+            root_Tk.update()
     except KeyboardInterrupt:
         pass
     finally:
         if controller:
-            sdl2.SDL_GameControllerClose(controller)
-        sdl2.SDL_Quit()
-
+            SDL_GameControllerClose(controller)
+        SDL_Quit()
 
 if __name__ == "__main__":
     main()
