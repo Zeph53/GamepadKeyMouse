@@ -1,33 +1,37 @@
 # GAMEPADKEYMOUSE.PY
 This is a Python3 script that allows the user to move the mouse cursor around with a gamepad's joystick. As well as the right and left click. Also, the ability to open an on-screen keyboard that is navigatable with the joystick.  
 
-Currently the on-screen keyboard is nearly entirely non-functional, can only move the highlight around for now. Mouse cursor works but it's slightly janky still.  
+Currently, the on-screen keyboard is nearly entirely functional, can't use the secondary symbols yet. Mouse cursor works but it's slightly janky still.  
 
 ChatGPT is completely responsible for this. I primarily created this so I could sit back and do some sort of text development using my gamepad.  
 
 ## Requirements  
     Gamepad, script tested and configured ONLY using an oldschool "Playstation (DS3) Controller" connected through bluetooth.
     Debian with XFCE4
-    XDoTool
     Python3
-    A whole lot of Python3 modules, SDL2 specifically
+    A whole lot of Python3 modules, SDL2 specifically, and pynput
     IDK I'll figure it all out later...
 
 ## Usage  
 Simply open a terminal and execute the script.  
 Debug information such as button and axis inputs will be displayed.  
 
-Left analogue stick (?) to move the mouse cursor around the screen.  
-Cross (?) to left click.  
-Circle (?) to right click.
+#### Mouse controls
+Left analogue stick (?) (axis 0,1) to move the mouse cursor around the screen.  
+Cross (?) (button 0) to left click.  
+Circle (?) (button 1) to right click.
 
-Hold L2 (?) to bring up the on-screen keyboard.  
-Left analogue stick (?) to navigate the on-screen keyboard.  
-Eventually, L1 (?) to select or hold a key.  
+#### On screen keyboard controls
+Hold L2 (?) (axis 4) to bring up the on-screen keyboard.  
+Left analogue stick (?) (axis 0,1) to navigate the on-screen keyboard.  
+L1 (?) (button 9) to select or hold a key.  
 
-Currently only the Enter key is selectable and functional.  
+All keys seem to have functional primary actions. However the secondary actions, such as symbols, do not work yet.
 
 ## Updates
+    Resize and reorganize layout, specifically left/right shift, and space.
+    Working osk button holding.
+    Functional primary key presses.
     Improved navigatable multicell keys like spacebar or enter.
     Better movement from multicell keys.
     Actually select keys using gamepad button 9 (L1).
@@ -36,6 +40,7 @@ Currently only the Enter key is selectable and functional.
     README.md creation.
 
 ## Updates Queue  
+    It might be better to use L1 as left click in mouse mode.
     Package script as an AppImage, to include all of those dependencies. Tested - functional.
     Use right stick and R1 for secondary highlight selection with the OSK open.
     Keyboard media keys.
