@@ -6,9 +6,6 @@
 ## L2 might not be L2 for anyone else but me.
 ## GamepadKeyMouse to turn your gamepad into an effective mouse and keyboard.
 #
-#
-#
-#
 # Copyright (C) 2025 GitHub.com/Zeph53
 #
 # This program is free software: you can redistribute it and/or modify
@@ -24,6 +21,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+
 print("""
 This program comes with ABSOLUTELY NO WARRANTY!
 This is free software, and you are welcome to redistribute it under certain conditions.
@@ -31,20 +29,19 @@ See https://www.gnu.org/licenses/gpl-3.0.html for more details.
 """)
 
 
-import sdl2
-import tkinter as tk
-import sys
-from time import time
+import sys, time, sdl2, tkinter as tk 
 from tkinter import Toplevel
-from Xlib.display import Display
-from Xlib import X
-from Xlib import XK
+from Xlib import X, XK
 from Xlib.ext import xtest
+from Xlib.display import Display
+from pynput.keyboard import Controller as KeyboardController, Key
+
 
 # Configuration constants
 DEADZONE = 8192
 EXEMPT_AXES = {4, 5}
 AXIS_STATE = {i: 0 for i in range(6)}
+
 
 # Display for X input
 disp = Display()
@@ -52,13 +49,14 @@ root = disp.screen().root
 g = root.get_geometry()
 sw, sh = g.width, g.height
 
+
 # Mouse settings
 MAX_SPEED = 20
 FRAME_DELAY = 16
-
 dx_accum = 0.0
 dy_accum = 0.0
 scroll_accum = 0.0
+
 
 # On-screen keyboard globals
 osk_window = None
@@ -66,8 +64,12 @@ menu_buttons = []
 menu_cursor_x = 0
 menu_cursor_y = 0
 MENU_SPEED = 1.5
-NAVIGATION_DELAY = 0.080
+NAVIGATION_DELAY = 0.1
 last_move_time = 0
+prev_focus = None
+prev_revert = None
+keyboard = KeyboardController()
+
 
 # Utility functions
 def apply_deadzone(axis, v):
@@ -79,9 +81,11 @@ def apply_deadzone(axis, v):
     scaled *= 32767
     return int(scaled if v > 0 else -scaled)
 
+
 def send_click(btn, down):
     xtest.fake_input(disp, X.ButtonPress if down else X.ButtonRelease, btn)
     disp.sync()
+
 
 def move_cursor(dx, dy):
     pos = root.query_pointer()
@@ -89,6 +93,7 @@ def move_cursor(dx, dy):
     ny = min(max(0, int(pos.root_y + dy)), sh - 1)
     root.warp_pointer(nx, ny)
     disp.sync()
+
 
 def send_scroll(dx, dy):
     if dy != 0:
@@ -99,25 +104,29 @@ def send_scroll(dx, dy):
         xtest.fake_input(disp, X.ButtonRelease, 6 if dx > 0 else 7)
     disp.sync()
 
+
 def print_axis_state():
     line = " | ".join(f"A{a}:{AXIS_STATE[a]:>6}" for a in sorted(AXIS_STATE))
     sys.stdout.write("\r" + line)
     sys.stdout.flush()
     print("\n")
 
-def open_osk():
-    global osk_window, menu_buttons, menu_cursor_x, menu_cursor_y, last_move_time
 
+def open_osk():
+    global osk_window, menu_buttons, menu_cursor_x, menu_cursor_y, last_move_time, prev_focus, prev_revert
+    reply = disp.get_input_focus()
+    prev_focus = reply.focus
+    prev_revert = reply.revert_to
     if osk_window is not None:
         return
 
     osk_window = Toplevel()
     osk_window.title("OSK Menu")
-    osk_window.attributes("-topmost", True)
     osk_window.overrideredirect(True)
-    osk_window.lift()
     osk_window.wm_attributes("-alpha", 0.95)
-    osk_window.configure(highlightthickness=0, bd=0)
+    osk_window.attributes("-topmost", True)
+    osk_window.lift()
+    osk_window.configure(bg="black", highlightthickness=0, bd=0)
 
     screen_w = osk_window.winfo_screenwidth()
     screen_h = osk_window.winfo_screenheight()
@@ -125,16 +134,15 @@ def open_osk():
     x_pos = (screen_w // 2) - (win_w // 2)
     y_pos = screen_h - win_h
     osk_window.geometry(f"{win_w}x{win_h}+{x_pos}+{y_pos}")
-    osk_window.configure(bg="black")
 
     qwerty = [
         ["Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12","Empty","Empty","Print\nScreen","Scroll\nLock","Pause\nBreak"],
         ["Empty"]*18,
         ["~\n`","!\n1","@\n2","#\n3","$\n4","%\n5","^\n6","&\n7","*\n8","(\n9",")\n0","_\n-","+\n=","Back\nSpace","Empty","Insert","Home","Page\nUp"],
         ["Tab","Q","W","E","R","T","Y","U","I","O","P","{\n[","}\n]","|\n\\","Empty","Delete","End","Page\nDown"],
-        ["Caps","A","S","D","F","G","H","J","K","L",":\n;","\"\n'","Enter","Empty","Empty","Empty","Empty","Empty"],
-        ["Shift","Z","X","C","V","B","N","M","<\n,",">\n.","?\n/","Shift","Empty","Empty","Empty","Empty","Up","Empty"],
-        ["Ctrl","Win","Fn","Alt","Space","Space","Space","Space","Alt","Fn","Menu","Ctrl","Empty","Empty","Empty","Left","Down","Right"]
+        ["Caps\nLock","A","S","D","F","G","H","J","K","L",":\n;","\"\n'","Enter","Enter","Empty","Empty","Empty","Empty"],
+        ["L-Shift","L-Shift","Z","X","C","V","B","N","M","<\n,",">\n.","?\n/","R-Shift","R-Shift","Empty","Empty","Up","Empty"],
+        ["L-Ctrl","L-Super","Fn","L-Alt","Space","Space","Space","Space","Space","Space","R-Alt","R-Super","Menu","R-Ctrl","Empty","Left","Down","Right"]
     ]
 
     menu_buttons = []
@@ -152,21 +160,16 @@ def open_osk():
             elif key == "Space":
                 btn = tk.Button(osk_window, text="Space", width=24, height=2,
                                bg="gray", fg="white", relief="raised", font=("Arial",12))
-                btn.grid(row=r, column=c, columnspan=4, sticky="nsew")
-                btn_row.extend([btn]*4)
-                c += 4
-            elif key == "Enter":
-                btn = tk.Button(osk_window, text="Enter", width=12, height=2,
+                btn.grid(row=r, column=c, columnspan=6, sticky="nsew")
+                btn_row.extend([btn]*6)
+                c += 6
+            elif key in ("Enter","L-Shift","R-Shift"):
+                span = 2
+                btn = tk.Button(osk_window, text=key, width=12, height=2,
                                bg="gray", fg="white", relief="raised", font=("Arial",12))
-                btn.grid(row=r, column=c, columnspan=2, sticky="nsew")
-                btn_row.extend([btn]*2)
-                c += 2
-            elif key == "Shift":
-                btn = tk.Button(osk_window, text="Shift", width=12, height=2,
-                               bg="gray", fg="white", relief="raised", font=("Arial",12))
-                btn.grid(row=r, column=c, columnspan=2, sticky="nsew")
-                btn_row.extend([btn]*2)
-                c += 2
+                btn.grid(row=r, column=c, columnspan=span, sticky="nsew")
+                btn_row.extend([btn]*span)
+                c += span
             else:
                 btn = tk.Button(osk_window, text=key, width=6, height=2,
                                bg="gray", fg="white", relief="raised", font=("Arial",12))
@@ -175,39 +178,30 @@ def open_osk():
                 c += 1
         menu_buttons.append(btn_row)
 
-    for i in range(len(qwerty)):
+    for i in range(len(menu_buttons)):
         osk_window.grid_rowconfigure(i, weight=1, uniform="r")
     for j in range(max(len(r) for r in menu_buttons)):
         osk_window.grid_columnconfigure(j, weight=1, uniform="c")
 
-    # The key change here: Do not interfere with typing in the chatbox.
-    osk_window.attributes("-topmost", True)  # Always on top but not stealing focus.
-    root.set_input_focus(X.RevertToParent, X.CurrentTime)
+    disp.set_input_focus(prev_focus, prev_revert, X.CurrentTime)
     disp.sync()
-
-    # Set the cursor to the previous position
     highlight_button(menu_cursor_x, menu_cursor_y)
-
 
 
 # Close OSK function
 def close_osk():
-    global osk_window
+    global osk_window, prev_focus, prev_revert, menu_cursor_x, menu_cursor_y
     if osk_window:
-        # Save the current cursor position before closing
-        global menu_cursor_x, menu_cursor_y
         menu_cursor_x, menu_cursor_y = get_cursor_position()
-        
-        # Ensure the focus is reset back to the original window
-        root.set_input_focus(X.RevertToParent, X.CurrentTime)
+        disp.set_input_focus(prev_focus, prev_revert, X.CurrentTime)
         disp.sync()
-        
         osk_window.destroy()
         osk_window = None
 
 
 def get_cursor_position():
     return menu_cursor_x, menu_cursor_y
+
 
 def highlight_button(x, y):
     for r, row in enumerate(menu_buttons):
@@ -221,7 +215,6 @@ def highlight_button(x, y):
 
 
 # Navigation logic
-
 def navigate_menu(x_axis, y_axis):
     global menu_cursor_x, menu_cursor_y, last_move_time
     now = time.time()
@@ -250,7 +243,6 @@ def navigate_menu(x_axis, y_axis):
         if nx < 0 or nx >= len(row):
             return False
         return row[nx] is not None and row[nx].cget("text") != "Empty"
-
     # Handle diagonal movement
     if dx != 0 and dy != 0:
         for k in range(1, 10):
@@ -286,66 +278,70 @@ def navigate_menu(x_axis, y_axis):
                 if is_valid(x0, ny):
                     new_y = ny
                     break
-
     if (new_x, new_y) != (x0, y0):
         menu_cursor_x, menu_cursor_y = new_x, new_y
         highlight_button(menu_cursor_x, menu_cursor_y)
         last_move_time = now
 
-from pynput.keyboard import Controller as KeyboardController, Key
-import time
 
-# Initialize keyboard controller
-keyboard = KeyboardController()
+def press_menu_button_down():
+    global prev_focus, prev_revert, pressed_osk_key
+    x, y = menu_cursor_x, menu_cursor_y
+    if not (0 <= y < len(menu_buttons) and 0 <= x < len(menu_buttons[y]) and menu_buttons[y][x]):
+        return
 
-def press_menu_button():
-    try:
-        x, y = menu_cursor_x, menu_cursor_y
-        if y < 0 or y >= len(menu_buttons) or x < 0 or x >= len(menu_buttons[y]):
-            return
-        btn = menu_buttons[y][x]
-        if not btn:
-            return
-        label = btn['text']
-        keys = label.split('\n')[-1]  # Get the last part of the label (in case of multi-line buttons)
+    raw_label = menu_buttons[y][x]['text']
+    lines = raw_label.split("\n")
+    if len(lines) == 2:
+        top = lines[0].strip().lower()
+        bottom = lines[1].strip().lower()
+        label = bottom if len(bottom) == 1 else (top + bottom)
+    else:
+        label = raw_label.strip().lower().replace(" ", "")
 
-        print(f"Button label: '{label}'")  # Debugging the label we are trying to press
+    key_map = {
+        "enter": Key.enter, "space": Key.space, "tab": Key.tab,
+        "backspace": Key.backspace, "esc": Key.esc, "menu": Key.menu,
 
-        # If the label is "Enter", send an actual Enter key press
-        if keys == "Enter":
-            print("Sending Enter key...")
-            keyboard.press(Key.enter)
-            keyboard.release(Key.enter)
-        else:
-            # For other keys, send the corresponding key press
-            for char in keys:
-                print(f"Sending key press for {char}")  # Debugging which character we are pressing
+        "up": Key.up, "down": Key.down, "left": Key.left, "right": Key.right,
 
-                # If the character is a regular printable key
-                if char.isalpha():  # Handle alphabetic characters
-                    keyboard.press(char.lower())  # Lowercase version
-                    keyboard.release(char.lower())  # Release the lowercase version
-                elif char.isdigit():  # Handle numeric characters
-                    keyboard.press(char)
-                    keyboard.release(char)
-                elif char == ' ':  # Space bar handling
-                    keyboard.press(Key.space)
-                    keyboard.release(Key.space)
-                else:
-                    # Handle other special characters
-                    keyboard.press(char)
-                    keyboard.release(char)
+        "printscreen": Key.print_screen, "pausebreak": Key.pause,
+        "insert": Key.insert, "home": Key.home, "delete": Key.delete,
+        "end": Key.end, "pageup": Key.page_up, "pagedown": Key.page_down,
 
-        time.sleep(0.05)  # Slight delay to allow key press to be processed
+        "l-shift": Key.shift, "r-shift": Key.shift_r,
+        "l-ctrl": Key.ctrl, "r-ctrl": Key.ctrl_r,
+        "l-alt": Key.alt, "r-alt": Key.alt_r,
+        "l-super": Key.cmd,"r-super": Key.cmd_r,
 
-    except Exception as e:
-        print(f"Error sending OSK key: {e}", file=sys.stderr)
+        "capslock": Key.caps_lock, "scrolllock": Key.scroll_lock
+    }
+
+    if label.startswith("f") and label[1:].isdigit():
+        actual_key = getattr(Key, label, None)
+    elif label in key_map:
+        actual_key = key_map[label]
+    elif len(label) == 1:
+        actual_key = label
+    else:
+        return
+
+    pressed_osk_key = actual_key
+    keyboard.press(actual_key)
+    disp.set_input_focus(prev_focus, prev_revert, X.CurrentTime)
+    disp.sync()
 
 
+def press_menu_button_up():
+    global pressed_osk_key
+    if pressed_osk_key:
+        keyboard.release(pressed_osk_key)
+        pressed_osk_key = None
+        disp.set_input_focus(prev_focus, prev_revert, X.CurrentTime)
+        disp.sync()
 
 
 # Main loop
-
 def main():
     global dx_accum, dy_accum, scroll_accum
     sdl2.SDL_Init(sdl2.SDL_INIT_GAMECONTROLLER)
@@ -372,39 +368,41 @@ def main():
             updated = False
             while sdl2.SDL_PollEvent(evt):
                 if evt.type == sdl2.SDL_CONTROLLERAXISMOTION:
-                    a, v = evt.caxis.axis, apply_deadzone(evt.caxis.axis, evt.caxis.value)
-                    if AXIS_STATE[a] != v:
-                        AXIS_STATE[a] = v
+                    axis = evt.caxis.axis
+                    v = apply_deadzone(axis, evt.caxis.value)
+                    if AXIS_STATE[axis] != v:
+                        AXIS_STATE[axis] = v
                         updated = True
 
                 elif evt.type == sdl2.SDL_CONTROLLERBUTTONDOWN:
                     b = evt.cbutton.button
-                    print(f"Button {b} pressed")  # Echo button press to terminal
+                    print(f"Button {b} pressed")
                     try:
                         if osk_window:
-                            if b == 9:  # L2 button (or whatever you choose for "Enter" on the OSK)
-                                press_menu_button()  # Trigger key press on OSK
+                            if b == 9:
+                                press_menu_button_down()
                         else:
-                            # Other button actions can be mapped here
                             if b == 0:
                                 send_click(1, True)
                             elif b == 1:
                                 send_click(3, True)
                     except Exception as e:
-                        print(f"Error handling controller button {b}: {e}", file=sys.stderr)
-
+                        print(f"Error handling button press {b}: {e}", file=sys.stderr)
 
                 elif evt.type == sdl2.SDL_CONTROLLERBUTTONUP:
                     b = evt.cbutton.button
-                    print(f"Button {b} released")  # Echo button release to terminal
+                    print(f"Button {b} released")
                     try:
-                        if not osk_window:
+                        if osk_window:
+                            if b == 9:
+                                press_menu_button_up()
+                        else:
                             if b == 0:
                                 send_click(1, False)
                             elif b == 1:
                                 send_click(3, False)
                     except Exception as e:
-                        print(f"Error handling controller button release {b}: {e}", file=sys.stderr)
+                        print(f"Error handling button release {b}: {e}", file=sys.stderr)
 
             if AXIS_STATE[4] > 0:
                 if osk_window is None:
@@ -443,6 +441,6 @@ def main():
             sdl2.SDL_GameControllerClose(controller)
         sdl2.SDL_Quit()
 
+
 if __name__ == "__main__":
     main()
-
