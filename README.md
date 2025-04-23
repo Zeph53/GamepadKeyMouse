@@ -40,7 +40,7 @@ All keys seem to have functional primary actions. However the secondary actions,
     README.md creation.
 
 ## Updates Queue  
-    Key repeat doesn't seem to work while holding a key in the osk.
+    Key repeat doesn't seem to work for certain keys while holding in the osk.
     It might be better to use L1 as left click in mouse mode.
     Package script as an AppImage, to include all of those dependencies. Tested - functional.
     Use right stick and R1 for secondary highlight selection with the OSK open.
