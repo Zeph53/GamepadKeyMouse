@@ -56,6 +56,7 @@ All keys can be currently held down and it seems like all secondary symbols are 
     README.md creation.
 
 ## Updates Queue  
+    Need to add GPL3 license to AppImage for the actual script.
     Key repeat doesn't seem to work for certain keys while holding in the osk.
     It might be better to use L1 as left click in mouse mode.
     Keyboard media keys.
