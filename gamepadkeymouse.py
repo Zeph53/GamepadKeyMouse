@@ -53,19 +53,15 @@ from sdl2 import (
     SDL_CONTROLLERAXISMOTION, SDL_CONTROLLERBUTTONDOWN, SDL_CONTROLLERBUTTONUP
 )
 from tkinter import Toplevel, Label, Button, Tk
-from Xlib import X
-from Xlib.ext import xtest
-from Xlib.display import Display
 from pynput.keyboard import Controller as KeyboardController, Key
+from pynput.mouse import Controller as MouseController, Button as MouseButton
+
+mouse = MouseController()
+keyboard = KeyboardController()
 
 DEADZONE = 8192
 EXEMPT_AXES = {4, 5}
 AXIS_STATE = {i: 0 for i in range(6)}
-
-disp = Display()
-root = disp.screen().root
-g = root.get_geometry()
-sw, sh = g.width, g.height
 
 MAX_SPEED = 20
 FRAME_DELAY = 16
@@ -83,7 +79,6 @@ pressed_red = None
 pressed_mouse = {}
 
 prev_focus = prev_revert = None
-keyboard = KeyboardController()
 
 def apply_deadzone(axis, v):
     if axis in EXEMPT_AXES:
@@ -94,24 +89,25 @@ def apply_deadzone(axis, v):
     return int(scaled if v > 0 else -scaled)
 
 def send_click(btn, down):
-    xtest.fake_input(disp, X.ButtonPress if down else X.ButtonRelease, btn)
-    disp.sync()
+    if btn == 1:
+        if down:
+            mouse.press(MouseButton.left)
+        else:
+            mouse.release(MouseButton.left)
+    elif btn == 3:
+        if down:
+            mouse.press(MouseButton.right)
+        else:
+            mouse.release(MouseButton.right)
 
 def move_cursor(dx, dy):
-    pos = root.query_pointer()
-    nx = min(max(0, pos.root_x + dx), sw - 1)
-    ny = min(max(0, pos.root_y + dy), sh - 1)
-    root.warp_pointer(int(nx), int(ny))
-    disp.sync()
+    mouse.move(int(dx), int(dy))
 
 def send_scroll(dx, dy):
-    if dy:
-        xtest.fake_input(disp, X.ButtonPress, 4 if dy>0 else 5)
-        xtest.fake_input(disp, X.ButtonRelease, 4 if dy>0 else 5)
     if dx:
-        xtest.fake_input(disp, X.ButtonPress, 6 if dx>0 else 7)
-        xtest.fake_input(disp, X.ButtonRelease, 6 if dx>0 else 7)
-    disp.sync()
+        mouse.scroll(int(dx), 0)
+    if dy:
+        mouse.scroll(0, int(dy))
 
 def print_axis_state():
     line = " | ".join(f"A{a}:{AXIS_STATE[a]:>6}" for a in sorted(AXIS_STATE))
@@ -173,20 +169,24 @@ def on_mouse_release(event, x, y):
     if data:
         release_button(data)
 
+def set_focus(window):
+    window.focus_force()
+    window.lift()
+
 def open_osk():
-    global osk_window, menu_buttons, prev_focus, prev_revert
-    if osk_window: return
-    reply = disp.get_input_focus()
-    prev_focus, prev_revert = reply.focus, reply.revert_to
+    global osk_window, menu_buttons
+    if osk_window:
+        return
+
     osk_window = Toplevel()
     osk_window.overrideredirect(True)
     osk_window.wm_attributes("-alpha", 0.95)
-    osk_window.lift()
     osk_window.configure(bg="black", highlightthickness=0, bd=0)
     win_w, win_h = 1400, 350
     x_pos = (osk_window.winfo_screenwidth() // 2) - (win_w // 2)
     y_pos = osk_window.winfo_screenheight() - win_h
     osk_window.geometry(f"{win_w}x{win_h}+{x_pos}+{y_pos}")
+    set_focus(osk_window)
 
     qwerty = [
         ["Esc","F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12","Empty","Empty","Print\nScreen","Scroll\nLock","Pause\nBreak"],
@@ -197,6 +197,7 @@ def open_osk():
         ["L-Shift","L-Shift","Z","X","C","V","B","N","M","<\n,",">\n.","?\n/","R-Shift","R-Shift","Empty","Empty","Up","Empty"],
         ["L-Ctrl","L-Super","Fn","L-Alt","Space","Space","Space","Space","Space","Space","R-Alt","R-Super","Menu","R-Ctrl","Empty","Left","Down","Right"]
     ]
+
     menu_buttons = []
     for r, row in enumerate(qwerty):
         btn_row = []
@@ -238,8 +239,22 @@ def open_osk():
     for j in range(max(len(r) for r in menu_buttons)):
         osk_window.grid_columnconfigure(j, weight=1, uniform="c")
 
-    disp.set_input_focus(prev_focus, prev_revert, X.CurrentTime)
-    disp.sync()
+def close_osk():
+    global osk_window, pressed_blue, pressed_red, pressed_mouse
+    if not osk_window:
+        return
+    if pressed_blue:
+        release_button(pressed_blue)
+        pressed_blue = None
+    if pressed_red:
+        release_button(pressed_red)
+        pressed_red = None
+    for data in list(pressed_mouse.values()):
+        if data:
+            release_button(data)
+    pressed_mouse.clear()
+    osk_window.destroy()
+    osk_window = None
 
 
 def close_osk():
@@ -258,9 +273,6 @@ def close_osk():
         if data:
             release_button(data)
     pressed_mouse.clear()
-
-    disp.set_input_focus(prev_focus, prev_revert, X.CurrentTime)
-    disp.sync()
     osk_window.destroy()
     osk_window = None
 
@@ -456,10 +468,10 @@ def main():
                     send_scroll(0, -1)
                     ver_scroll_accum += 1
                 if hor_scroll_accum >= 0.5:
-                    send_scroll(1, 0)
+                    send_scroll(-1, 0)
                     hor_scroll_accum -= 1
                 elif hor_scroll_accum <= -0.5:
-                    send_scroll(-1, 0)
+                    send_scroll(1, 0)
                     hor_scroll_accum += 1
                 if mx or my:
                     move_cursor(mx, my)
