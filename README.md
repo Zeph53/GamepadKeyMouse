@@ -56,7 +56,6 @@ All keys can be currently held down and it seems like all secondary symbols are 
 ## Updates Queue  
     Key repeat doesn't seem to work for certain keys while holding in the osk.
     It might be better to use L1 as left click in mouse mode.
-    Package script as an AppImage, to include all of those dependencies. Tested - functional.
     Keyboard media keys.
     Create a better and more informative README.md.
     On the fly SDL2 hardware remapping, for other gamepads besides a DS3.
