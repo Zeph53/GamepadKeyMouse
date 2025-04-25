@@ -1,19 +1,38 @@
-# GAMEPADKEYMOUSE.PY
+# GAMEPADKEYMOUSE.PY  
 This is a Python3 script that allows the user to move the mouse cursor around with a gamepad's joystick. As well as the right and left click. Also, the ability to open an on-screen keyboard that is navigatable with the joysticks.  
 
 Currently, the on-screen keyboard is nearly entirely functional, can use all, if not, most of the secondary symbols. Mouse cursor works but it's slightly janky still.  
 
-ChatGPT is completely responsible for this. I primarily created this so I could sit back and do some sort of text development using my gamepad.  
+ChatGPT is completely responsible for this. I primarily created this so I could sit back and do some sort of text development using my gamepad. It take a fair amount of practice to get used to, try to focus on a single highlight and use the other one for symbols, modifier keys, or things like backspace.  
 
 ## Requirements  
     Gamepad, script tested and configured ONLY using an oldschool "Playstation (DS3) Controller" connected through bluetooth.
-    Debian with XFCE4
-    Python3
-    A whole lot of Python3 modules, SDL2 specifically, and pynput
+    Debian with XFCE4, possibly any Linux OS with a DE that supports evdev now.
+    Python3 and modules: tk, pysdl2, evdev, python-xlib, six and pynput
+
+## Installation  
+### Installing the required dependencies into an interally managed environment using python3-pip:  
+#### Initially python3-pip must be installed in order to use pip:  
+    sudo apt install python3-pip
+#### Then use pip to install Tkinter, Pynput, PySDL2, and their dependencies: evdev, six, and python3-xlib:  
+    pip install tk pynput pysdl2
+### Installing the required dependencies into an externally managed environment using APT:  
+#### If installing into an interally managed environment isn't working, try to install externally:  
+    sudo apt install python3-tk python3-sdl2 python3-pynput
+### Installing the AppImage is as simple as it gets:  
+#### Simply download the latest AppImage asset file from GitHub Releases into the current directory:  
+    wget $(curl -s https://api.github.com/repos/Zeph53/GamepadKeyMouse/releases/latest | grep browser_download_url | grep AppImage | cut -d '"' -f 4)
+#### Then the AppImage must have execute permissions added:  
+    chmod +x "gamepadkeymouse-x86_64.AppImage"
+#### Here is a simple single command to download and set execute permission for the AppImage:  
+    url=$(curl -s https://api.github.com/repos/Zeph53/GamepadKeyMouse/releases/latest | grep browser_download_url | grep AppImage | cut -d '"' -f 4) && wget "$url" && chmod +x "$(basename "$url")"
+
 
 ## Usage  
-#### Simply open a terminal and execute the script.  
+#### Simply open a terminal and execute the script:  
     python3 ~/GamepadKeyMouse/gamepadkeymouse.py
+#### If you downloaded the AppImage, make sure your current directory contains it:  
+    'gamepadkeymouse-x86_64.AppImage'
 Debug information such as button and axis inputs will be displayed.  
 
 #### Mouse controls  
@@ -32,9 +51,12 @@ Right analogue stick? (axis 2,3) to move the red highlight cursor.
 L1? (button 9) to press/hold the blue highlighted key.  
 R1? (button 10) to press/hold the red highlighted key.  
 
-All keys can be currently held down and it seems like all secondary symbols are functional.
+All/most keys can be currently held down and it seems like all secondary symbols are functional.  
 
-## Updates
+## Updates  
+    Altered the README.md to include information about installing dependencies and downloading the AppImage.
+    Cleaned up a duplicated close_osk definition.
+    Added license file and release note link for python-six library.
     Bundled the script into a standalone AppImage. Hope it works, tested working on a Debian live VM.
     Removed dependency on Xlib, and everything that depends on.
     The user can now click and hold keys on the osk with a real hardware mouse, like a real osk.
@@ -56,7 +78,8 @@ All keys can be currently held down and it seems like all secondary symbols are 
     README.md creation.
 
 ## Updates Queue  
-    Need to add GPL3 license to AppImage for the actual script.
+    More than likely going to add a third green highlight for the keyboard, the directional pad and cross.
+    Need to add GPL3, and python-six licenses to AppImage and re-release.
     Key repeat doesn't seem to work for certain keys while holding in the osk.
     It might be better to use L1 as left click in mouse mode.
     Keyboard media keys.
