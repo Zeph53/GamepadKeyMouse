@@ -35,6 +35,8 @@ R1? (button 10) to press/hold the red highlighted key.
 All keys can be currently held down and it seems like all secondary symbols are functional.
 
 ## Updates
+    Bundled the script into a standalone AppImage. Hope it works, tested working on a Debian live VM.
+    Removed dependency on Xlib, and everything that depends on.
     The user can now click and hold keys on the osk with a real hardware mouse, like a real osk.
     When the two different coloured highlight selectors are on the same cell they are a mixed colour.
     Fixed a bug where a key held down would persist after the osk closes.
