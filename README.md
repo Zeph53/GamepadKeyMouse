@@ -11,15 +11,15 @@ ChatGPT is completely responsible for this. I primarily created this so I could 
     Python3 and modules: tk, pysdl2, evdev, python-xlib, six and pynput
 
 ## Installation  
-### Installing the required dependencies into an interally managed environment using python3-pip:  
+### Installing the required dependencies into an interally managed environment using python3-pip  
 #### Initially python3-pip must be installed in order to use pip:  
     sudo apt install python3-pip
 #### Then use pip to install Tkinter, Pynput, PySDL2, and their dependencies: evdev, six, and python3-xlib:  
     pip install tk pynput pysdl2
-### Installing the required dependencies into an externally managed environment using APT:  
+### Installing the required dependencies into an externally managed environment using APT  
 #### If installing into an interally managed environment isn't working, try to install externally:  
     sudo apt install python3-tk python3-sdl2 python3-pynput
-### Installing the AppImage is as simple as it gets:  
+### Installing the AppImage is as simple as it gets  
 #### Simply download the latest AppImage asset file from GitHub Releases into the current directory:  
     wget $(curl -s https://api.github.com/repos/Zeph53/GamepadKeyMouse/releases/latest | grep browser_download_url | grep AppImage | cut -d '"' -f 4)
 #### Then the AppImage must have execute permissions added:  
