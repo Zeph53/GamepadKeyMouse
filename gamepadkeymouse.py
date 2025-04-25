@@ -153,7 +153,6 @@ def press_button(cur_x, cur_y):
     
     return (None, None, None)
 
-
 def release_button(button_data):
     actual, cur_x, cur_y = button_data
     if actual:
@@ -240,24 +239,6 @@ def open_osk():
         osk_window.grid_columnconfigure(j, weight=1, uniform="c")
 
 def close_osk():
-    global osk_window, pressed_blue, pressed_red, pressed_mouse
-    if not osk_window:
-        return
-    if pressed_blue:
-        release_button(pressed_blue)
-        pressed_blue = None
-    if pressed_red:
-        release_button(pressed_red)
-        pressed_red = None
-    for data in list(pressed_mouse.values()):
-        if data:
-            release_button(data)
-    pressed_mouse.clear()
-    osk_window.destroy()
-    osk_window = None
-
-
-def close_osk():
     global osk_window, prev_focus, prev_revert, pressed_blue, pressed_red, pressed_mouse
     if not osk_window:
         return
@@ -275,7 +256,6 @@ def close_osk():
     pressed_mouse.clear()
     osk_window.destroy()
     osk_window = None
-
 
 def highlight_all():
     for r, row in enumerate(menu_buttons):
@@ -316,7 +296,6 @@ def highlight_all():
                 btn = menu_buttons[blue_y][blue_x]
                 if btn:
                     btn.configure(bg="purple")
-
 
 def navigate(x, y, cur_x, cur_y, last_move):
     now = time()
@@ -374,7 +353,6 @@ def release_button(button_data):
         keyboard.release(actual)
     if actual is not None and 0<=cur_y<len(menu_buttons) and 0<=cur_x<len(menu_buttons[cur_y]):
         menu_buttons[cur_y][cur_x].configure(relief="raised")
-
 
 def main():
     global dx_accum, dy_accum, ver_scroll_accum, hor_scroll_accum
