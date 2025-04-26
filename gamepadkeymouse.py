@@ -57,15 +57,19 @@ This is free software, and you are welcome to
 redistribute it under certain conditions. """)
 
 def print_version():
-    print("""GamepadKeyMouse_0.1.9 """)
+    print("""GamepadKeyMouse_0.1.91 """)
 
 def print_help():
     print("""Control mouse and keyboard using a Playstation (DS3) controller. 
 
 Usage: python3 "gamepadkeymouse.py" [-h] [-v]
 
+Options:
+  --help, [-h]                        Display this help menu and then exit 
+  --version, [-v]                     Display the current version and then exit 
+
 Default mouse controls: 
-  Left joystick (axis 0, 1)           Mouse cursor movement 
+  Left joystick (axis 0, 1)           Cursor movement 
   Cross (button 0)                    Left click 
   Circle (button 1)                   Right click 
 
