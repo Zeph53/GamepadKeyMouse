@@ -37,12 +37,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-print("""
-This program comes with ABSOLUTELY NO WARRANTY!
-This is free software, and you are welcome to redistribute it under certain conditions.
-See https://www.gnu.org/licenses/gpl-3.0.html for more details.
-""")
-
+from argparse import ArgumentParser, RawTextHelpFormatter
 from sys import stdout, stderr
 from time import time
 from sdl2 import (
@@ -56,16 +51,71 @@ from tkinter import Toplevel, Label, Button, Tk
 from pynput.keyboard import Controller as KeyboardController, Key
 from pynput.mouse import Controller as MouseController, Button as MouseButton
 
+def print_disclaimer():
+    print("""This program comes with ABSOLUTELY NO WARRANTY!
+This is free software, and you are welcome to 
+redistribute it under certain conditions. """)
+
+def print_version():
+    print("""GamepadKeyMouse_0.1.9 """)
+
+def print_help():
+    print("""Control mouse and keyboard using a Playstation (DS3) controller. 
+
+Usage: python3 "gamepadkeymouse.py" [-h] [-v]
+
+Default mouse controls: 
+  Left joystick (axis 0, 1)           Mouse cursor movement 
+  Cross (button 0)                    Left click 
+  Circle (button 1)                   Right click 
+
+Default keyboard controls: 
+  Hold L2/R2 (axis 4/5)               Open the on-screen keyboard 
+  Left analog stick (axis 0, 1)       Blue highlight movement 
+  Right analog stick (axis 2, 3)      Red highlight movement 
+  L1/R1 (button 9/10)                 Key press with blue/red highlight 
+
+GamepadKeyMouse 
+Copyright (C) 2025 GitHub.com/Zeph53 
+This program comes with ABSOLUTELY NO WARRANTY! 
+This is free software, and you are welcome to 
+redistribute it under certain conditions. 
+See \"https://www.gnu.org/licenses/gpl-3.0.txt\" """)
+
+def parse_arguments():
+    parser = ArgumentParser(
+        add_help=False
+    )
+    parser._optionals.title = "Options"
+    parser.add_argument("-h", "--help", action="store_true", help="Show this message and exit. ")
+    parser.add_argument("-v", "--version", action="store_true", help="Show version information and exit. ")
+    return parser.parse_args()
+args = parse_arguments()
+
+if args.help:
+    print_help()
+    exit(0)
+
+if args.version:
+    print_disclaimer()
+    print()
+    print_version()
+    exit(0)
+
+if args:
+    print_disclaimer()
+    print()
+
 mouse = MouseController()
 keyboard = KeyboardController()
 
 DEADZONE = 8192
 EXEMPT_AXES = {4, 5}
 AXIS_STATE = {i: 0 for i in range(6)}
+dx_accum = dy_accum = ver_scroll_accum = hor_scroll_accum = 0.0
 
 MAX_SPEED = 20
 FRAME_DELAY = 16
-dx_accum = dy_accum = ver_scroll_accum = hor_scroll_accum = 0.0
 
 osk_window = None
 menu_buttons = []
@@ -113,60 +163,6 @@ def print_axis_state():
     line = " | ".join(f"A{a}:{AXIS_STATE[a]:>6}" for a in sorted(AXIS_STATE))
     stdout.write("\r" + line)
     stdout.flush()
-
-def press_button(cur_x, cur_y):
-    raw = menu_buttons[cur_y][cur_x]['text']
-    lines = raw.split("\n")
-    
-    if len(lines) == 2 and len(lines[1].strip()) == 1:
-        label = lines[1].lower()
-    else:
-        label = raw.lower().replace("\n", "").replace(" ", "")
-    
-    key_map = {
-        "enter": Key.enter, "space": Key.space, "tab": Key.tab, "backspace": Key.backspace,
-        "esc": Key.esc, "menu": Key.menu, "up": Key.up, "down": Key.down,
-        "left": Key.left, "right": Key.right,
-        "printscreen": Key.print_screen, "pausebreak": Key.pause,
-        "insert": Key.insert, "home": Key.home, "delete": Key.delete,
-        "end": Key.end, "pageup": Key.page_up, "pagedown": Key.page_down,
-        "l-shift": Key.shift, "r-shift": Key.shift_r,
-        "l-ctrl": Key.ctrl, "r-ctrl": Key.ctrl_r,
-        "l-alt": Key.alt, "r-alt": Key.alt_r,
-        "l-super": Key.cmd, "r-super": Key.cmd_r,
-        "capslock": Key.caps_lock, "scrolllock": Key.scroll_lock
-    }
-
-    # Check for function key mapping, e.g., f1, f2, f3
-    if label.startswith("f") and len(label) > 1 and label[1:].isdigit():
-        print(f"Attempting to press function key: {label}")  # Debugging print
-        actual = getattr(Key, label, None)
-        if actual is None:
-            print(f"Could not find key for: {label}")  # Debugging print if key is not found
-    else:
-        actual = key_map.get(label)
-
-    if actual:
-        keyboard.press(actual)
-        menu_buttons[cur_y][cur_x].configure(relief="sunken")
-        return (actual, cur_x, cur_y)
-    
-    return (None, None, None)
-
-def release_button(button_data):
-    actual, cur_x, cur_y = button_data
-    if actual:
-        keyboard.release(actual)
-    if 0 <= cur_y < len(menu_buttons) and 0 <= cur_x < len(menu_buttons[cur_y]):
-        menu_buttons[cur_y][cur_x].configure(relief="raised")
-
-def on_mouse_press(event, x, y):
-    pressed_mouse[(x,y)] = press_button(x, y)
-
-def on_mouse_release(event, x, y):
-    data = pressed_mouse.pop((x,y), None)
-    if data:
-        release_button(data)
 
 def set_focus(window):
     window.focus_force()
@@ -354,6 +350,14 @@ def release_button(button_data):
     if actual is not None and 0<=cur_y<len(menu_buttons) and 0<=cur_x<len(menu_buttons[cur_y]):
         menu_buttons[cur_y][cur_x].configure(relief="raised")
 
+def on_mouse_press(event, x, y):
+    pressed_mouse[(x,y)] = press_button(x, y)
+
+def on_mouse_release(event, x, y):
+    data = pressed_mouse.pop((x,y), None)
+    if data:
+        release_button(data)
+
 def main():
     global dx_accum, dy_accum, ver_scroll_accum, hor_scroll_accum
     global blue_x, blue_y, red_x, red_y, last_move_blue, last_move_red
@@ -460,6 +464,7 @@ def main():
             SDL_Delay(FRAME_DELAY)
             root_Tk.update()
     except KeyboardInterrupt:
+        print()
         pass
     finally:
         if controller:
