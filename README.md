@@ -56,14 +56,17 @@ R1? (button 10) to press/hold the red highlighted key.
 All/most keys can be currently held down and it seems like all secondary symbols are functional.  
 
 
-## Building the AppImage
-#### Install dependencies
+## Building the AppImage  
+#### Download AppImageTool and make sure it's in the same directory as the build script.  
+    wget "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+#### Install dependencies  
     sudo apt install python3-tk python3-sdl2 python3-pynput
-#### Just run the build script with gamepadkeymouse.py as an argument.
+#### Just run the build script with gamepadkeymouse.py as an argument.  
     sudo ."/createappimage.bash" "gamepadkeymouse.py"
 
 
 ## Updates  
+    Created simple build instructions for the newly added AppImage build script.
     Readded Options section within --help menu.
     Created license file within AppImage for argparse.
     Uploaded the Appimage license file generator.
