@@ -54,6 +54,9 @@ R1? (button 10) to press/hold the red highlighted key.
 All/most keys can be currently held down and it seems like all secondary symbols are functional.  
 
 ## Updates  
+    Improved initial license disclaimer.
+    Created an entire --help menu with -h alias, also --version and -v.
+    Added command options parsing.
     Added GPL3 to the AppImage.
     Altered the README.md to include information about installing dependencies and downloading the AppImage.
     Cleaned up a duplicated close_osk definition.
