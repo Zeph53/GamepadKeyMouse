@@ -64,7 +64,7 @@ All/most keys can be currently held down and it seems like all secondary symbols
 
 
 ## Updates  
-    Created license file within AppImage for argparser.
+    Created license file within AppImage for argparse.
     Uploaded the Appimage license file generator.
     Uploaded the AppImage build script for gamepadkeymouse.
     Improved initial license disclaimer.
