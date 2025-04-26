@@ -54,6 +54,7 @@ R1? (button 10) to press/hold the red highlighted key.
 All/most keys can be currently held down and it seems like all secondary symbols are functional.  
 
 ## Updates  
+    Added GPL3 to the AppImage.
     Altered the README.md to include information about installing dependencies and downloading the AppImage.
     Cleaned up a duplicated close_osk definition.
     Added license file and release note link for python-six library.
@@ -79,7 +80,6 @@ All/most keys can be currently held down and it seems like all secondary symbols
 
 ## Updates Queue  
     More than likely going to add a third green highlight for the keyboard, the directional pad and cross.
-    Need to add GPL3, and python-six licenses to AppImage and re-release.
     Key repeat doesn't seem to work for certain keys while holding in the osk.
     It might be better to use L1 as left click in mouse mode.
     Keyboard media keys.
