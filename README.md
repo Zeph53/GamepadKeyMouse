@@ -5,10 +5,12 @@ Currently, the on-screen keyboard is nearly entirely functional, can use all, if
 
 ChatGPT is completely responsible for this. I primarily created this so I could sit back and do some sort of text development using my gamepad. It take a fair amount of practice to get used to, try to focus on a single highlight and use the other one for symbols, modifier keys, or things like backspace.  
 
+
 ## Requirements  
     Gamepad, script tested and configured ONLY using an oldschool "Playstation (DS3) Controller" connected through bluetooth.
     Debian with XFCE4, possibly any Linux OS with a DE that supports evdev now.
     Python3 and modules: tk, pysdl2, evdev, python-xlib, six, and pynput
+
 
 ## Installation  
 ### Installing the required dependencies into an interally managed environment using python3-pip  
@@ -26,8 +28,8 @@ ChatGPT is completely responsible for this. I primarily created this so I could 
     chmod +x "gamepadkeymouse-x86_64.AppImage"
 #### Here is a simple single command to download and set execute permission for the AppImage:  
     url=$(curl -s https://api.github.com/repos/Zeph53/GamepadKeyMouse/releases/latest | grep browser_download_url | grep AppImage | cut -d '"' -f 4) && wget "$url" && chmod +x "$(basename "$url")"
-
-
+  
+  
 ## Usage  
 #### Simply open a terminal and execute the script:  
     python3 ~/GamepadKeyMouse/gamepadkeymouse.py
@@ -53,7 +55,18 @@ R1? (button 10) to press/hold the red highlighted key.
 
 All/most keys can be currently held down and it seems like all secondary symbols are functional.  
 
+
+## Building the AppImage
+#### Install dependencies
+    sudo apt install python3-tk python3-sdl2 python3-pynput
+#### Just run the build script with gamepadkeymouse.py as an argument.
+    sudo ."/createappimage.bash" "gamepadkeymouse.py"
+
+
 ## Updates  
+    Created license file within AppImage for argparser.
+    Uploaded the Appimage license file generator.
+    Uploaded the AppImage build script for gamepadkeymouse.
     Improved initial license disclaimer.
     Created an entire --help menu with -h alias, also --version and -v.
     Added command options parsing.
@@ -81,6 +94,7 @@ All/most keys can be currently held down and it seems like all secondary symbols
     GPL3 licence compliance.
     README.md creation.
 
+
 ## Updates Queue  
     More than likely going to add a third green highlight for the keyboard, the directional pad and cross.
     Key repeat doesn't seem to work for certain keys while holding in the osk.
@@ -89,6 +103,7 @@ All/most keys can be currently held down and it seems like all secondary symbols
     Create a better and more informative README.md.
     On the fly SDL2 hardware remapping, for other gamepads besides a DS3.
     IDK I'll think of things later...
+
 
 ## Disclaimer  
     This program is free software: you can redistribute it and/or modify
@@ -100,3 +115,4 @@ All/most keys can be currently held down and it seems like all secondary symbols
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
+
