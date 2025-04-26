@@ -8,7 +8,7 @@ ChatGPT is completely responsible for this. I primarily created this so I could 
 ## Requirements  
     Gamepad, script tested and configured ONLY using an oldschool "Playstation (DS3) Controller" connected through bluetooth.
     Debian with XFCE4, possibly any Linux OS with a DE that supports evdev now.
-    Python3 and modules: tk, pysdl2, evdev, python-xlib, six and pynput
+    Python3 and modules: tk, pysdl2, evdev, python-xlib, six, and pynput
 
 ## Installation  
 ### Installing the required dependencies into an interally managed environment using python3-pip  
